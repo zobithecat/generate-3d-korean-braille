@@ -22,6 +22,7 @@ from braille_data import (
 # Primitive meshes
 # ---------------------------------------------------------------------------
 def uv_sphere(center, radius, lat_segs=6, lon_segs=10):
+    """UV sphere with outward-facing triangles."""
     cx, cy, cz = center
     vertices = [[cx, cy, cz + radius]]
     ring_starts = []
@@ -47,7 +48,7 @@ def uv_sphere(center, radius, lat_segs=6, lon_segs=10):
     first_ring = ring_starts[0]
     for lon in range(lon_segs):
         nxt = (lon + 1) % lon_segs
-        faces.append([0, first_ring + nxt, first_ring + lon])
+        faces.append([0, first_ring + lon, first_ring + nxt])
 
     for i in range(len(ring_starts) - 1):
         rs0 = ring_starts[i]
@@ -58,13 +59,87 @@ def uv_sphere(center, radius, lat_segs=6, lon_segs=10):
             b = rs0 + nxt
             c = rs1 + nxt
             d = rs1 + lon
-            faces.append([a, b, c])
-            faces.append([a, c, d])
+            faces.append([a, d, c])
+            faces.append([a, c, b])
 
     last_ring = ring_starts[-1]
     for lon in range(lon_segs):
         nxt = (lon + 1) % lon_segs
-        faces.append([south_idx, last_ring + lon, last_ring + nxt])
+        faces.append([south_idx, last_ring + nxt, last_ring + lon])
+
+    return (np.asarray(vertices, dtype=np.float64),
+            np.asarray(faces, dtype=np.int64))
+
+
+def dome(center, radius, embed_depth, lat_segs=4, lon_segs=10):
+    """Cylinder + upper hemisphere joined at z = cz.
+
+    center = (cx, cy, cz): cz is the plate surface (hemisphere equator).
+    The cylinder extends downward to cz - embed_depth (anchored inside
+    the plate); the upper hemisphere (radius ``radius``) sits on top.
+    Outward-facing triangles.
+    """
+    cx, cy, cz = center
+
+    vertices = [[cx, cy, cz + radius]]     # apex = idx 0
+    ring_indices = []
+    for lat in range(1, lat_segs + 1):
+        phi = (np.pi / 2) * lat / lat_segs
+        ring_r = radius * np.sin(phi)
+        ring_z = cz + radius * np.cos(phi)
+        ring_indices.append(len(vertices))
+        for lon in range(lon_segs):
+            theta = 2 * np.pi * lon / lon_segs
+            vertices.append([
+                cx + ring_r * np.cos(theta),
+                cy + ring_r * np.sin(theta),
+                ring_z,
+            ])
+
+    cyl_bot_start = len(vertices)
+    for lon in range(lon_segs):
+        theta = 2 * np.pi * lon / lon_segs
+        vertices.append([
+            cx + radius * np.cos(theta),
+            cy + radius * np.sin(theta),
+            cz - embed_depth,
+        ])
+    cyl_bot_center = len(vertices)
+    vertices.append([cx, cy, cz - embed_depth])
+
+    faces = []
+    first_ring = ring_indices[0]
+    for lon in range(lon_segs):
+        nxt = (lon + 1) % lon_segs
+        faces.append([0, first_ring + lon, first_ring + nxt])
+
+    for i in range(len(ring_indices) - 1):
+        rs0 = ring_indices[i]
+        rs1 = ring_indices[i + 1]
+        for lon in range(lon_segs):
+            nxt = (lon + 1) % lon_segs
+            a = rs0 + lon
+            b = rs0 + nxt
+            c = rs1 + nxt
+            d = rs1 + lon
+            faces.append([a, d, c])
+            faces.append([a, c, b])
+
+    eq = ring_indices[-1]
+    for lon in range(lon_segs):
+        nxt = (lon + 1) % lon_segs
+        a = eq + lon
+        b = eq + nxt
+        c = cyl_bot_start + nxt
+        d = cyl_bot_start + lon
+        faces.append([a, d, c])
+        faces.append([a, c, b])
+
+    for lon in range(lon_segs):
+        nxt = (lon + 1) % lon_segs
+        faces.append([cyl_bot_center,
+                      cyl_bot_start + nxt,
+                      cyl_bot_start + lon])
 
     return (np.asarray(vertices, dtype=np.float64),
             np.asarray(faces, dtype=np.int64))
@@ -211,9 +286,18 @@ def plate_dimensions(lines_cells):
     return plate_w, plate_h
 
 
+DEFAULT_DOT_STYLE = 'dome'
+DEFAULT_DOT_RADIUS = 0.8
+DEFAULT_DOT_EMBED = 0.15
+
+
 def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        with_backplate=True, with_supports=True,
-                       fillet_radius=0.0, n_corner=6, n_fillet=6):
+                       fillet_radius=0.0,
+                       dot_style=DEFAULT_DOT_STYLE,
+                       dot_radius=DEFAULT_DOT_RADIUS,
+                       dot_embed=DEFAULT_DOT_EMBED,
+                       n_corner=6, n_fillet=6):
     lines_cells = text_to_cells(text)
     plate_w, plate_h = plate_dimensions(lines_cells)
 
@@ -228,8 +312,11 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                 if dot not in DOT_OFFSETS:
                     continue
                 dx, dy = DOT_OFFSETS[dot]
-                meshes.append(uv_sphere((cell_x + dx, cell_y + dy, 0.0),
-                                        DOT_RADIUS))
+                dot_center = (cell_x + dx, cell_y + dy, 0.0)
+                if dot_style == 'dome':
+                    meshes.append(dome(dot_center, dot_radius, dot_embed))
+                else:
+                    meshes.append(uv_sphere(dot_center, dot_radius))
 
     if with_backplate:
         if fillet_radius > 0:
@@ -277,13 +364,19 @@ def save_stl(vertices, faces, filename):
 
 def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
                    with_backplate=True, with_supports=True,
-                   fillet_radius=0.0):
+                   fillet_radius=0.0,
+                   dot_style=DEFAULT_DOT_STYLE,
+                   dot_radius=DEFAULT_DOT_RADIUS,
+                   dot_embed=DEFAULT_DOT_EMBED):
     v, f, dims = build_braille_mesh(
         text,
         plate_thickness=plate_thickness,
         with_backplate=with_backplate,
         with_supports=with_supports,
         fillet_radius=fillet_radius,
+        dot_style=dot_style,
+        dot_radius=dot_radius,
+        dot_embed=dot_embed,
     )
     save_stl(v, f, filename)
     return len(f), dims

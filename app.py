@@ -12,7 +12,10 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
 from braille_data import text_to_cells, cells_to_unicode, PLATE_THICKNESS
-from generator import build_and_save, plate_dimensions
+from generator import (
+    build_and_save, plate_dimensions,
+    DEFAULT_DOT_STYLE, DEFAULT_DOT_RADIUS, DEFAULT_DOT_EMBED,
+)
 
 PREVIEW_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               'preview_stl.py')
@@ -22,8 +25,8 @@ class BrailleApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         root.title("점자 STL 생성기 - Braille Plate Generator")
-        root.geometry("660x680")
-        root.minsize(540, 600)
+        root.geometry("680x820")
+        root.minsize(560, 720)
 
         header = ttk.Frame(root)
         header.pack(fill='x', padx=16, pady=(14, 4))
@@ -49,7 +52,10 @@ class BrailleApp:
         self.backplate_var = tk.BooleanVar(value=True)
         self.supports_var = tk.BooleanVar(value=True)
         self.thickness_var = tk.StringVar(value=str(PLATE_THICKNESS))
-        self.fillet_var = tk.StringVar(value='1.0')
+        self.fillet_var = tk.StringVar(value='1.5')
+        self.dot_style_var = tk.StringVar(value=DEFAULT_DOT_STYLE)
+        self.dot_radius_var = tk.StringVar(value=str(DEFAULT_DOT_RADIUS))
+        self.dot_embed_var = tk.StringVar(value=str(DEFAULT_DOT_EMBED))
 
         ttk.Checkbutton(
             opt_frame, text="후면 플레이트 포함 (backplate)",
@@ -78,6 +84,51 @@ class BrailleApp:
         ttk.Label(opt_frame, text="(0 = 샤프, 윗면/옆면만 적용)",
                   foreground='#777').grid(row=3, column=2, sticky='w',
                                           padx=(6, 0))
+
+        ttk.Separator(opt_frame, orient='horizontal').grid(
+            row=4, column=0, columnspan=3, sticky='we', pady=6)
+
+        ttk.Label(opt_frame, text="점 모양:").grid(
+            row=5, column=0, sticky='w', pady=2, padx=(0, 6))
+        style_frame = ttk.Frame(opt_frame)
+        style_frame.grid(row=5, column=1, columnspan=2, sticky='w')
+        ttk.Radiobutton(style_frame, text="Dome (원기둥+반구, 추천)",
+                        variable=self.dot_style_var,
+                        value='dome').pack(side='left', padx=(0, 10))
+        ttk.Radiobutton(style_frame, text="Sphere (구, 레거시)",
+                        variable=self.dot_style_var,
+                        value='sphere').pack(side='left')
+
+        ttk.Label(opt_frame, text="점 반경 (mm):").grid(
+            row=6, column=0, sticky='w', pady=2, padx=(0, 6))
+        ttk.Entry(opt_frame, width=8,
+                  textvariable=self.dot_radius_var).grid(
+            row=6, column=1, sticky='w')
+        ttk.Label(opt_frame, text="(= 가시 높이, 기저 = 2×반경)",
+                  foreground='#777').grid(row=6, column=2, sticky='w',
+                                          padx=(6, 0))
+
+        ttk.Label(opt_frame, text="플레이트 속 박힘 (mm):").grid(
+            row=7, column=0, sticky='w', pady=2, padx=(0, 6))
+        ttk.Entry(opt_frame, width=8,
+                  textvariable=self.dot_embed_var).grid(
+            row=7, column=1, sticky='w')
+        ttk.Label(opt_frame, text="(Dome 전용 앵커, 보통 0.15 ~ 0.2)",
+                  foreground='#777').grid(row=7, column=2, sticky='w',
+                                          padx=(6, 0))
+
+        preset_frame = ttk.LabelFrame(
+            root, text="프리셋 (Plate · Fillet · Dot 일괄 적용)", padding=6)
+        preset_frame.pack(fill='x', padx=16, pady=4)
+        ttk.Button(preset_frame, text="A  안정형 (일반용)",
+                   command=lambda: self._apply_preset('A')
+                   ).pack(side='left', padx=4)
+        ttk.Button(preset_frame, text="B  박형 (얇음)",
+                   command=lambda: self._apply_preset('B')
+                   ).pack(side='left', padx=4)
+        ttk.Button(preset_frame, text="C  사이니지 (크고 튼튼)",
+                   command=lambda: self._apply_preset('C')
+                   ).pack(side='left', padx=4)
 
         pv_frame = ttk.LabelFrame(root, text="점자 미리보기 (Unicode Braille)",
                                   padding=8)
@@ -135,6 +186,51 @@ class BrailleApp:
         except ValueError:
             raise ValueError("필렛 반경은 0 이상의 숫자여야 합니다.")
 
+    def _get_dot_style(self) -> str:
+        s = self.dot_style_var.get()
+        if s not in ('dome', 'sphere'):
+            raise ValueError("점 모양은 dome 또는 sphere 여야 합니다.")
+        return s
+
+    def _get_dot_radius(self) -> float:
+        try:
+            r = float(self.dot_radius_var.get())
+            if r <= 0:
+                raise ValueError
+            return r
+        except ValueError:
+            raise ValueError("점 반경은 0보다 큰 숫자여야 합니다.")
+
+    def _get_dot_embed(self) -> float:
+        try:
+            e = float(self.dot_embed_var.get())
+            if e < 0:
+                raise ValueError
+            return e
+        except ValueError:
+            raise ValueError("점 박힘 깊이는 0 이상의 숫자여야 합니다.")
+
+    PRESETS = {
+        'A': {'label': '안정형',   'thickness': 2.0, 'fillet': 1.5,
+              'dot_style': 'dome', 'dot_radius': 0.8,  'dot_embed': 0.15},
+        'B': {'label': '박형',     'thickness': 1.2, 'fillet': 0.6,
+              'dot_style': 'dome', 'dot_radius': 0.75, 'dot_embed': 0.20},
+        'C': {'label': '사이니지', 'thickness': 2.5, 'fillet': 2.0,
+              'dot_style': 'dome', 'dot_radius': 1.0,  'dot_embed': 0.20},
+    }
+
+    def _apply_preset(self, key: str):
+        p = self.PRESETS.get(key)
+        if p is None:
+            return
+        self.thickness_var.set(str(p['thickness']))
+        self.fillet_var.set(str(p['fillet']))
+        self.dot_style_var.set(p['dot_style'])
+        self.dot_radius_var.set(str(p['dot_radius']))
+        self.dot_embed_var.set(str(p['dot_embed']))
+        self.status_var.set(f"프리셋 {key} · {p['label']} 적용됨")
+        self.update_preview()
+
     def update_preview(self):
         text = self._get_text()
         lines = text_to_cells(text)
@@ -182,6 +278,9 @@ class BrailleApp:
         try:
             thickness = self._get_thickness()
             fillet_r = self._get_fillet()
+            dot_style = self._get_dot_style()
+            dot_radius = self._get_dot_radius()
+            dot_embed = self._get_dot_embed()
         except ValueError as e:
             messagebox.showerror("입력 오류", str(e))
             return
@@ -207,6 +306,9 @@ class BrailleApp:
                 with_backplate=self.backplate_var.get(),
                 with_supports=self.supports_var.get(),
                 fillet_radius=fillet_r,
+                dot_style=dot_style,
+                dot_radius=dot_radius,
+                dot_embed=dot_embed,
             )
         except ImportError as e:
             self.status_var.set("의존성 누락")
@@ -244,6 +346,9 @@ class BrailleApp:
         try:
             thickness = self._get_thickness()
             fillet_r = self._get_fillet()
+            dot_style = self._get_dot_style()
+            dot_radius = self._get_dot_radius()
+            dot_embed = self._get_dot_embed()
         except ValueError as e:
             messagebox.showerror("입력 오류", str(e))
             return
@@ -265,6 +370,10 @@ class BrailleApp:
                 plate_thickness=thickness,
                 with_backplate=self.backplate_var.get(),
                 with_supports=self.supports_var.get(),
+                fillet_radius=fillet_r,
+                dot_style=dot_style,
+                dot_radius=dot_radius,
+                dot_embed=dot_embed,
             )
         except ImportError as e:
             self.status_var.set("의존성 누락")
