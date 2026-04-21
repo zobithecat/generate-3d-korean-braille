@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Generated STL / preview artifacts
+*.stl
+braille_preview_*
+
+# macOS
+.DS_Store
+
+# Tool-local metadata (not meant to be shared)
+.claude/
+.omc/
+.vscode/
+.idea/
