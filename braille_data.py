@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 zobithecat
+# Derivative of https://github.com/benjaminaigner/braillegenerator
+#   Copyright (C) Benjamin Aigner (GPL-3.0)
 """Braille character mappings, Hangul decomposition, and text-to-cells conversion.
 
 Cell representation: a list of dot numbers using the standard 6-dot layout:

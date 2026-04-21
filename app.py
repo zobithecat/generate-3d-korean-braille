@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 zobithecat
+# Derivative of https://github.com/benjaminaigner/braillegenerator
+#   Copyright (C) Benjamin Aigner (GPL-3.0)
 """Tkinter GUI for the 점자 STL 생성기 (Braille Plate Generator)."""
 import atexit
 import os

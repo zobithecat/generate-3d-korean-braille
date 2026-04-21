@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 zobithecat
+# Derivative of https://github.com/benjaminaigner/braillegenerator
+#   Copyright (C) Benjamin Aigner (GPL-3.0)
 """Standalone trimesh viewer. Launched as a subprocess from app.py.
 
 Usage: python preview_stl.py <path.stl> [window_title]
