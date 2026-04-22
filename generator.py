@@ -290,6 +290,93 @@ DEFAULT_DOT_STYLE = 'dome'
 DEFAULT_DOT_RADIUS = 0.8
 DEFAULT_DOT_EMBED = 0.15
 
+DEFAULT_ENGRAVING = True
+DEFAULT_ENGRAVING_SIZE = 8.0     # triangle side length (mm)
+DEFAULT_ENGRAVING_DEPTH = 0.5    # pocket depth into plate (mm)
+
+
+def _triangular_prism(cx, cy, z_bottom, z_top, size, pointing_up=True):
+    """Watertight equilateral triangular prism for boolean subtraction.
+
+    The prism is axis-aligned with its triangle cross section in the XY
+    plane, extruded between z_bottom and z_top (z_top > z_bottom).
+    ``pointing_up`` places the triangle's apex at larger Y.
+    Returns (vertices, faces) with outward-facing normals.
+    """
+    h = size * np.sqrt(3) / 2
+    if pointing_up:
+        tri_xy = [
+            (cx,            cy + h * 2 / 3),   # apex
+            (cx - size / 2, cy - h / 3),       # bottom-left
+            (cx + size / 2, cy - h / 3),       # bottom-right
+        ]
+    else:
+        tri_xy = [
+            (cx,            cy - h * 2 / 3),
+            (cx + size / 2, cy + h / 3),
+            (cx - size / 2, cy + h / 3),
+        ]
+
+    # Vertices: 0..2 = bottom triangle, 3..5 = top triangle (same XY)
+    v = np.array(
+        [[x, y, z_bottom] for (x, y) in tri_xy]
+        + [[x, y, z_top] for (x, y) in tri_xy],
+        dtype=np.float64,
+    )
+    # Faces with outward normals.
+    # Bottom face (z_bottom), normal -Z: CW when viewed from +Z → [0,2,1]
+    # Top face (z_top), normal +Z: CCW viewed from +Z → [3,4,5]
+    # Side i → (i+1): outward side with CCW from outside
+    f = np.array([
+        [0, 2, 1],
+        [3, 4, 5],
+        [0, 1, 4], [0, 4, 3],
+        [1, 2, 5], [1, 5, 4],
+        [2, 0, 3], [2, 3, 5],
+    ], dtype=np.int64)
+    return v, f
+
+
+def apply_triangular_engraving(plate_v, plate_f, plate_w, plate_h,
+                                plate_thickness, size, depth,
+                                pointing_up=True, cx=None, cy=None):
+    """Boolean-subtract a triangular pocket from the plate back face.
+
+    Uses trimesh + manifold3d. The pocket opens at z = -plate_thickness
+    (plate's back face) and extends upward (into the plate) by ``depth``.
+    Returns (vertices, faces) of the engraved plate.
+    """
+    try:
+        import trimesh
+    except ImportError as exc:
+        raise ImportError(
+            "trimesh 가 필요합니다. 설치: pip install 'trimesh[easy]' manifold3d"
+        ) from exc
+
+    if cx is None:
+        cx = plate_w / 2
+    if cy is None:
+        cy = plate_h / 2
+
+    # Clamp so the engraving is always safely inside the plate.
+    size = max(0.0, min(size, plate_w * 0.4, plate_h * 0.6))
+    depth = max(0.0, min(depth, plate_thickness * 0.4))
+    if size <= 0 or depth <= 0:
+        return plate_v, plate_f
+
+    # Prism: bottom slightly BELOW the plate's back face so the boolean
+    # cleanly cuts through the back (no coplanar surfaces).
+    z_bottom = -plate_thickness - 0.1
+    z_top = -plate_thickness + depth
+
+    pv, pf = _triangular_prism(cx, cy, z_bottom, z_top, size, pointing_up)
+
+    plate = trimesh.Trimesh(plate_v, plate_f, process=False)
+    prism = trimesh.Trimesh(pv, pf, process=False)
+    engraved = trimesh.boolean.difference([plate, prism])
+    return (np.asarray(engraved.vertices, dtype=np.float64),
+            np.asarray(engraved.faces, dtype=np.int64))
+
 
 def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        with_backplate=True, with_supports=True,
@@ -297,6 +384,9 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        dot_style=DEFAULT_DOT_STYLE,
                        dot_radius=DEFAULT_DOT_RADIUS,
                        dot_embed=DEFAULT_DOT_EMBED,
+                       with_engraving=DEFAULT_ENGRAVING,
+                       engraving_size=DEFAULT_ENGRAVING_SIZE,
+                       engraving_depth=DEFAULT_ENGRAVING_DEPTH,
                        n_corner=6, n_fillet=6):
     lines_cells = text_to_cells(text)
     plate_w, plate_h = plate_dimensions(lines_cells)
@@ -327,13 +417,24 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
 
     if with_backplate:
         if fillet_radius > 0:
-            meshes.append(filleted_plate(
+            plate_v, plate_f = filleted_plate(
                 plate_w, plate_h, plate_thickness, fillet_radius,
                 n_corner=n_corner, n_fillet=n_fillet,
-            ))
+            )
         else:
-            meshes.append(axis_box(0.0, 0.0, -plate_thickness,
-                                   plate_w, plate_h, 0.0))
+            plate_v, plate_f = axis_box(
+                0.0, 0.0, -plate_thickness,
+                plate_w, plate_h, 0.0,
+            )
+
+        if with_engraving and engraving_size > 0 and engraving_depth > 0:
+            plate_v, plate_f = apply_triangular_engraving(
+                plate_v, plate_f, plate_w, plate_h, plate_thickness,
+                size=engraving_size, depth=engraving_depth,
+                pointing_up=True,
+            )
+
+        meshes.append((plate_v, plate_f))
 
         if with_supports:
             sup_z_top = 0.0
@@ -374,7 +475,10 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
                    fillet_radius=0.0,
                    dot_style=DEFAULT_DOT_STYLE,
                    dot_radius=DEFAULT_DOT_RADIUS,
-                   dot_embed=DEFAULT_DOT_EMBED):
+                   dot_embed=DEFAULT_DOT_EMBED,
+                   with_engraving=DEFAULT_ENGRAVING,
+                   engraving_size=DEFAULT_ENGRAVING_SIZE,
+                   engraving_depth=DEFAULT_ENGRAVING_DEPTH):
     v, f, dims = build_braille_mesh(
         text,
         plate_thickness=plate_thickness,
@@ -384,6 +488,9 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
         dot_style=dot_style,
         dot_radius=dot_radius,
         dot_embed=dot_embed,
+        with_engraving=with_engraving,
+        engraving_size=engraving_size,
+        engraving_depth=engraving_depth,
     )
     save_stl(v, f, filename)
     return len(f), dims
