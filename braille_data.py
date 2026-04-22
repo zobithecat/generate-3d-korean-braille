@@ -114,6 +114,29 @@ KOREAN_VOWEL = {
 }
 
 # ---------------------------------------------------------------------------
+# 단독 약자 (한 글자 약자) - 한국 점자 규정 제29항
+# '자음 + ㅏ (받침 없음)' 형태의 11개 음절은 단일 셀 약자로 적는다.
+# ㅏ 중성(⠣)을 생략한다. 대부분의 약자는 초성 점형과 점 패턴이 같다
+# (예: 카 약자 ⠋ == ㅋ 초성 ⠋). 가·사는 고유한 점형.
+#   예) 카드 = 카(⠋) + 드(⠊⠪) = ⠋⠊⠪      (3 cells)
+#       사람 = 사(⠇) + 람(⠐⠣⠢) = ⠇⠐⠣⠢   (4 cells)
+# ---------------------------------------------------------------------------
+KOREAN_SYLLABLE_ABBREV = {
+    '가': [1, 2, 4, 6],   # ⠫
+    '나': [1, 4],         # ⠉  (== ㄴ 초성)
+    '다': [2, 4],         # ⠊  (== ㄷ 초성)
+    '마': [1, 5],         # ⠑  (== ㅁ 초성)
+    '바': [4, 5],         # ⠘  (== ㅂ 초성)
+    '사': [1, 2, 3],      # ⠇
+    '자': [4, 6],         # ⠨  (== ㅈ 초성)
+    '카': [1, 2, 4],      # ⠋  (== ㅋ 초성)
+    '타': [1, 2, 5],      # ⠓  (== ㅌ 초성)
+    '파': [1, 4, 5],      # ⠙  (== ㅍ 초성)
+    '하': [2, 4, 5],      # ⠚  (== ㅎ 초성)
+}
+
+
+# ---------------------------------------------------------------------------
 # 약자 (abbreviations) - 국립국어원 2017 한국 점자 규정 제29항
 # (vowel, final) 패턴이 단일 셀로 축약되며, 초성과 무관하게 적용됨.
 #   예) 신 = ㅅ + (ㅣ+ㄴ → 인 약자 ⠟) = ⠠⠟  (2 cells, 3 cells가 아님)
@@ -217,10 +240,15 @@ def text_to_cells(text: str):
         for ch in raw_line:
             if is_hangul_syllable(ch):
                 prev_is_digit = False
+                # 1) Whole-syllable abbreviation first (가/나/다/마/바/사/
+                #    자/카/타/파/하) - ㅏ is absorbed into the single cell.
+                if ch in KOREAN_SYLLABLE_ABBREV:
+                    cells.append(list(KOREAN_SYLLABLE_ABBREV[ch]))
+                    continue
                 initial, vowel, final = decompose_hangul(ch)
                 cells.extend(KOREAN_INITIAL.get(initial, []))
-                # Apply (vowel, final) abbreviation if available; otherwise
-                # fall back to the long form of vowel [+ final].
+                # 2) (vowel, final) abbreviation if available; otherwise
+                #    fall back to the long form of vowel [+ final].
                 if (vowel, final) in KOREAN_VF_ABBREV:
                     cells.append(list(KOREAN_VF_ABBREV[(vowel, final)]))
                 else:
