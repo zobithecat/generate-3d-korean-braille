@@ -113,6 +113,30 @@ KOREAN_VOWEL = {
     'ㅣ': [[1, 3, 5]],
 }
 
+# ---------------------------------------------------------------------------
+# 약자 (abbreviations) - 국립국어원 2017 한국 점자 규정 제29항
+# (vowel, final) 패턴이 단일 셀로 축약되며, 초성과 무관하게 적용됨.
+#   예) 신 = ㅅ + (ㅣ+ㄴ → 인 약자 ⠟) = ⠠⠟  (2 cells, 3 cells가 아님)
+#       분 = ㅂ + (ㅜ+ㄴ → 운 약자 ⠛) = ⠘⠛
+#       인 = (ㅇ 생략) + (ㅣ+ㄴ → 인 약자 ⠟) = ⠟
+# ---------------------------------------------------------------------------
+KOREAN_VF_ABBREV = {
+    ('ㅓ', 'ㄱ'): [1, 4, 5, 6],        # 억 ⠹
+    ('ㅓ', 'ㄴ'): [2, 3, 4, 5, 6],     # 언 ⠾
+    ('ㅓ', 'ㄹ'): [2, 3, 4, 5],        # 얼 ⠞
+    ('ㅕ', 'ㄴ'): [1, 6],              # 연 ⠡
+    ('ㅕ', 'ㄹ'): [1, 2, 5, 6],        # 열 ⠳
+    ('ㅕ', 'ㅇ'): [1, 2, 4, 5, 6],     # 영 ⠻
+    ('ㅗ', 'ㄱ'): [1, 3, 4, 6],        # 옥 ⠭
+    ('ㅗ', 'ㄴ'): [1, 2, 3, 5, 6],     # 온 ⠷
+    ('ㅗ', 'ㅇ'): [1, 2, 3, 4, 5, 6],  # 옹 ⠿
+    ('ㅜ', 'ㄴ'): [1, 2, 4, 5],        # 운 ⠛
+    ('ㅜ', 'ㄹ'): [2, 3, 4, 6],        # 울 ⠮
+    ('ㅡ', 'ㄴ'): [1, 3, 4, 5, 6],     # 은 ⠵
+    ('ㅣ', 'ㄴ'): [1, 2, 3, 4, 5],     # 인 ⠟
+}
+
+
 KOREAN_FINAL = {
     '':   [],                 # no final
     'ㄱ': [[1]],
@@ -195,8 +219,13 @@ def text_to_cells(text: str):
                 prev_is_digit = False
                 initial, vowel, final = decompose_hangul(ch)
                 cells.extend(KOREAN_INITIAL.get(initial, []))
-                cells.extend(KOREAN_VOWEL.get(vowel, []))
-                cells.extend(KOREAN_FINAL.get(final, []))
+                # Apply (vowel, final) abbreviation if available; otherwise
+                # fall back to the long form of vowel [+ final].
+                if (vowel, final) in KOREAN_VF_ABBREV:
+                    cells.append(list(KOREAN_VF_ABBREV[(vowel, final)]))
+                else:
+                    cells.extend(KOREAN_VOWEL.get(vowel, []))
+                    cells.extend(KOREAN_FINAL.get(final, []))
                 continue
 
             if ch in KOREAN_INITIAL:

@@ -300,19 +300,26 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        n_corner=6, n_fillet=6):
     lines_cells = text_to_cells(text)
     plate_w, plate_h = plate_dimensions(lines_cells)
+    num_lines = max(len(lines_cells), 1)
 
     meshes = []
     y_pad_in_cell = (LINE_HEIGHT - 2 * DOT_SPACING) / 2
 
+    # Y-axis mirror for the braille content so that in a Y-up 3D viewer /
+    # slicer the braille is visually right-side-up (dot 1 at the top of each
+    # cell, line 0 at the top of the plate). The plate itself is Y-symmetric
+    # and the supports stay pinned to y = plate_h, so they are unaffected.
     for line_idx, cells in enumerate(lines_cells):
+        effective_line = (num_lines - 1) - line_idx
         for cell_idx, dots in enumerate(cells):
             cell_x = MARGIN + cell_idx * CHAR_WIDTH + DOT_SPACING / 2
-            cell_y = MARGIN + line_idx * LINE_HEIGHT + y_pad_in_cell
+            cell_y = MARGIN + effective_line * LINE_HEIGHT + y_pad_in_cell
             for dot in dots:
                 if dot not in DOT_OFFSETS:
                     continue
                 dx, dy = DOT_OFFSETS[dot]
-                dot_center = (cell_x + dx, cell_y + dy, 0.0)
+                dy_flipped = 2 * DOT_SPACING - dy
+                dot_center = (cell_x + dx, cell_y + dy_flipped, 0.0)
                 if dot_style == 'dome':
                     meshes.append(dome(dot_center, dot_radius, dot_embed))
                 else:
