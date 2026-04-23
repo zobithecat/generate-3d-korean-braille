@@ -287,12 +287,12 @@ def plate_dimensions(lines_cells):
 
 
 DEFAULT_DOT_STYLE = 'dome'
-DEFAULT_DOT_RADIUS = 0.8
+DEFAULT_DOT_RADIUS = 1.0
 DEFAULT_DOT_EMBED = 0.15
 
 DEFAULT_ENGRAVING = True
-DEFAULT_ENGRAVING_SIZE = 8.0     # triangle side length (mm)
-DEFAULT_ENGRAVING_DEPTH = 0.5    # pocket depth into plate (mm)
+DEFAULT_ENGRAVING_SIZE = 4.0     # triangle side length (mm)
+DEFAULT_ENGRAVING_DEPTH = 0.2    # pocket depth into plate (mm)
 
 
 def _triangular_prism(cx, cy, z_bottom, z_top, size, pointing_up=True):

@@ -16,7 +16,7 @@ An empty list [] represents a blank cell (space).
 # ---------------------------------------------------------------------------
 DOT_DIAMETER = 1.44          # mm
 DOT_RADIUS = DOT_DIAMETER / 2
-PLATE_THICKNESS = 2.0        # mm
+PLATE_THICKNESS = 1.5        # mm
 DOT_SPACING = 2.5            # distance between adjacent dot centers within a cell
 CHAR_WIDTH = 6.0             # horizontal distance between cell starts
 LINE_HEIGHT = 10.8           # vertical distance between line starts

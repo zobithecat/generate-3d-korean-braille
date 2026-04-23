@@ -165,16 +165,16 @@ app.py                    Tkinter GUI (엔트리 포인트)
 
 | 항목 | 기본값 | 출처 |
 |---|---|---|
-| Dome 점 반경 (= 가시 높이, 기저=2r) | 0.8 mm | ADA 점자 가이드 |
+| Dome 점 반경 (= 가시 높이, 기저=2r) | 1.0 mm | 실사용 튜닝 (ADA 상한) |
 | Dome 점 플레이트 박힘 | 0.15 mm | 새로 추가 (앵커) |
 | 셀 내 점 간격 | 2.5 mm | `braille.jscad` |
 | 문자 간격 | 6.0 mm | `braille.jscad` |
 | 줄 간격 | 10.8 mm | `braille.jscad` |
-| 플레이트 두께 | 2.0 mm | `braille.jscad` |
+| 플레이트 두께 | 1.5 mm | 실사용 튜닝 (원본 2.0) |
 | 플레이트 여백 | 2.0 mm | 새로 추가 |
 | 필렛 반경 | 1.5 mm | 새로 추가 (프리셋 A) |
-| 음각 삼각형 변 | 8.0 mm | 새로 추가 |
-| 음각 깊이 | 0.5 mm | 새로 추가 |
+| 음각 삼각형 변 | 4.0 mm | 새로 추가 |
+| 음각 깊이 | 0.2 mm | 새로 추가 |
 | UV sphere / Dome 해상도 | lat 6 × lon 10 / lat 4 × lon 10 | 새로 추가 |
 | 레거시 sphere 직경 | 1.44 mm | `braille.jscad` |
 

@@ -51,7 +51,7 @@ class BrailleApp:
         opt_frame.pack(fill='x', padx=16, pady=6)
 
         self.backplate_var = tk.BooleanVar(value=True)
-        self.supports_var = tk.BooleanVar(value=True)
+        self.supports_var = tk.BooleanVar(value=False)
         self.thickness_var = tk.StringVar(value=str(PLATE_THICKNESS))
         self.fillet_var = tk.StringVar(value='1.5')
         self.dot_style_var = tk.StringVar(value=DEFAULT_DOT_STYLE)
