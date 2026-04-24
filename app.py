@@ -14,7 +14,7 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 from braille_data import text_to_cells, cells_to_unicode, PLATE_THICKNESS
 from generator import (
     build_and_save, plate_dimensions,
-    DEFAULT_DOT_STYLE, DEFAULT_DOT_RADIUS, DEFAULT_DOT_EMBED,
+    DEFAULT_DOT_STYLE, DEFAULT_DOT_RADIUS, DEFAULT_DOT_EMBED, DEFAULT_DOT_FLAT,
     DEFAULT_ENGRAVING, DEFAULT_ENGRAVING_SIZE, DEFAULT_ENGRAVING_DEPTH,
 )
 
@@ -57,6 +57,8 @@ class BrailleApp:
         self.dot_style_var = tk.StringVar(value=DEFAULT_DOT_STYLE)
         self.dot_radius_var = tk.StringVar(value=str(DEFAULT_DOT_RADIUS))
         self.dot_embed_var = tk.StringVar(value=str(DEFAULT_DOT_EMBED))
+        self.dot_flat_enable_var = tk.BooleanVar(value=True)
+        self.dot_flat_var = tk.StringVar(value=str(DEFAULT_DOT_FLAT))
         self.engrave_var = tk.BooleanVar(value=DEFAULT_ENGRAVING)
         self.engrave_size_var = tk.StringVar(value=str(DEFAULT_ENGRAVING_SIZE))
         self.engrave_depth_var = tk.StringVar(value=str(DEFAULT_ENGRAVING_DEPTH))
@@ -121,31 +123,46 @@ class BrailleApp:
                   foreground='#777').grid(row=7, column=2, sticky='w',
                                           padx=(6, 0))
 
+        ttk.Checkbutton(
+            opt_frame,
+            text="점 상단 평평 깎기 (FDM 노즐 안착용, 뾰족 꼭지 방지)",
+            variable=self.dot_flat_enable_var,
+        ).grid(row=8, column=0, columnspan=3, sticky='w', pady=2)
+
+        ttk.Label(opt_frame, text="깎기 깊이 (mm):").grid(
+            row=9, column=0, sticky='w', pady=2, padx=(0, 6))
+        ttk.Entry(opt_frame, width=8,
+                  textvariable=self.dot_flat_var).grid(
+            row=9, column=1, sticky='w')
+        ttk.Label(opt_frame, text="(보통 0.03 ~ 0.08, 자동 클램프: 반경의 50%)",
+                  foreground='#777').grid(row=9, column=2, sticky='w',
+                                          padx=(6, 0))
+
         ttk.Separator(opt_frame, orient='horizontal').grid(
-            row=8, column=0, columnspan=3, sticky='we', pady=6)
+            row=10, column=0, columnspan=3, sticky='we', pady=6)
 
         ttk.Checkbutton(
             opt_frame,
             text="뒷면에 음각 삼각형 (설치 방향 표시, apex = 위쪽)",
             variable=self.engrave_var,
-        ).grid(row=9, column=0, columnspan=3, sticky='w', pady=2)
+        ).grid(row=11, column=0, columnspan=3, sticky='w', pady=2)
 
         ttk.Label(opt_frame, text="삼각형 변 길이 (mm):").grid(
-            row=10, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=12, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.engrave_size_var).grid(
-            row=10, column=1, sticky='w')
+            row=12, column=1, sticky='w')
         ttk.Label(opt_frame, text="(자동 클램프: plate 의 40%/60%)",
-                  foreground='#777').grid(row=10, column=2, sticky='w',
+                  foreground='#777').grid(row=12, column=2, sticky='w',
                                           padx=(6, 0))
 
         ttk.Label(opt_frame, text="음각 깊이 (mm):").grid(
-            row=11, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=13, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.engrave_depth_var).grid(
-            row=11, column=1, sticky='w')
+            row=13, column=1, sticky='w')
         ttk.Label(opt_frame, text="(자동 클램프: plate 두께의 40%)",
-                  foreground='#777').grid(row=11, column=2, sticky='w',
+                  foreground='#777').grid(row=13, column=2, sticky='w',
                                           padx=(6, 0))
 
         preset_frame = ttk.LabelFrame(
@@ -241,6 +258,18 @@ class BrailleApp:
         except ValueError:
             raise ValueError("점 박힘 깊이는 0 이상의 숫자여야 합니다.")
 
+    def _get_dot_flat(self) -> float:
+        """Apex-truncation depth; returns 0 if the checkbox is off."""
+        if not self.dot_flat_enable_var.get():
+            return 0.0
+        try:
+            f = float(self.dot_flat_var.get())
+            if f < 0:
+                raise ValueError
+            return f
+        except ValueError:
+            raise ValueError("깎기 깊이는 0 이상의 숫자여야 합니다.")
+
     def _get_engrave_size(self) -> float:
         try:
             s = float(self.engrave_size_var.get())
@@ -262,12 +291,15 @@ class BrailleApp:
     PRESETS = {
         'A': {'label': '안정형',   'thickness': 2.0, 'fillet': 1.5,
               'dot_style': 'dome', 'dot_radius': 0.8,  'dot_embed': 0.15,
+              'dot_flat_on': True, 'dot_flat': 0.05,
               'engrave': True,  'engrave_size': 8.0,  'engrave_depth': 0.5},
         'B': {'label': '박형',     'thickness': 1.2, 'fillet': 0.6,
               'dot_style': 'dome', 'dot_radius': 0.75, 'dot_embed': 0.20,
+              'dot_flat_on': True, 'dot_flat': 0.04,
               'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.3},
         'C': {'label': '사이니지', 'thickness': 2.5, 'fillet': 2.0,
               'dot_style': 'dome', 'dot_radius': 1.0,  'dot_embed': 0.20,
+              'dot_flat_on': True, 'dot_flat': 0.08,
               'engrave': True,  'engrave_size': 10.0, 'engrave_depth': 0.7},
     }
 
@@ -280,6 +312,8 @@ class BrailleApp:
         self.dot_style_var.set(p['dot_style'])
         self.dot_radius_var.set(str(p['dot_radius']))
         self.dot_embed_var.set(str(p['dot_embed']))
+        self.dot_flat_enable_var.set(p['dot_flat_on'])
+        self.dot_flat_var.set(str(p['dot_flat']))
         self.engrave_var.set(p['engrave'])
         self.engrave_size_var.set(str(p['engrave_size']))
         self.engrave_depth_var.set(str(p['engrave_depth']))
@@ -336,6 +370,7 @@ class BrailleApp:
             dot_style = self._get_dot_style()
             dot_radius = self._get_dot_radius()
             dot_embed = self._get_dot_embed()
+            dot_flat = self._get_dot_flat()
             engrave = self.engrave_var.get()
             engrave_size = self._get_engrave_size()
             engrave_depth = self._get_engrave_depth()
@@ -367,6 +402,7 @@ class BrailleApp:
                 dot_style=dot_style,
                 dot_radius=dot_radius,
                 dot_embed=dot_embed,
+                dot_flat=dot_flat,
                 with_engraving=engrave,
                 engraving_size=engrave_size,
                 engraving_depth=engrave_depth,
@@ -410,6 +446,7 @@ class BrailleApp:
             dot_style = self._get_dot_style()
             dot_radius = self._get_dot_radius()
             dot_embed = self._get_dot_embed()
+            dot_flat = self._get_dot_flat()
             engrave = self.engrave_var.get()
             engrave_size = self._get_engrave_size()
             engrave_depth = self._get_engrave_depth()
@@ -438,6 +475,7 @@ class BrailleApp:
                 dot_style=dot_style,
                 dot_radius=dot_radius,
                 dot_embed=dot_embed,
+                dot_flat=dot_flat,
                 with_engraving=engrave,
                 engraving_size=engrave_size,
                 engraving_depth=engrave_depth,

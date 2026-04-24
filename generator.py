@@ -71,22 +71,55 @@ def uv_sphere(center, radius, lat_segs=6, lon_segs=10):
             np.asarray(faces, dtype=np.int64))
 
 
-def dome(center, radius, embed_depth, lat_segs=4, lon_segs=10):
-    """Cylinder + upper hemisphere joined at z = cz.
+def dome(center, radius, embed_depth, flat_top_depth=0.05,
+         lat_segs=4, lon_segs=10):
+    """Cylinder + upper hemisphere joined at z = cz, optionally with a
+    small flat cap at the apex.
 
     center = (cx, cy, cz): cz is the plate surface (hemisphere equator).
     The cylinder extends downward to cz - embed_depth (anchored inside
-    the plate); the upper hemisphere (radius ``radius``) sits on top.
+    the plate); the hemisphere (radius ``radius``) sits on top.
+
+    ``flat_top_depth`` > 0 truncates the hemisphere apex at
+    z = cz + radius - flat_top_depth, replacing the single-point apex
+    with a small flat disc of radius sqrt(2 R d - d²). This gives the
+    FDM nozzle a proper landing surface instead of finishing on a
+    geometric point, eliminating the pointed-blob artifact at each dot.
+
     Outward-facing triangles.
     """
     cx, cy, cz = center
 
-    vertices = [[cx, cy, cz + radius]]     # apex = idx 0
+    # Clamp flat_top_depth to at most 50% of hemisphere radius.
+    flat_top_depth = max(0.0, min(flat_top_depth, radius * 0.5))
+    use_flat_top = flat_top_depth > 0.0
+
+    vertices = []
+    if use_flat_top:
+        z_cap = cz + radius - flat_top_depth
+        cap_r = float(np.sqrt(radius ** 2 - (radius - flat_top_depth) ** 2))
+        top_center_idx = len(vertices)
+        vertices.append([cx, cy, z_cap])
+        cap_ring_start = len(vertices)
+        for lon in range(lon_segs):
+            theta = 2 * np.pi * lon / lon_segs
+            vertices.append([
+                cx + cap_r * np.cos(theta),
+                cy + cap_r * np.sin(theta),
+                z_cap,
+            ])
+    else:
+        z_cap = None
+        vertices.append([cx, cy, cz + radius])     # pointed apex at idx 0
+
     ring_indices = []
     for lat in range(1, lat_segs + 1):
         phi = (np.pi / 2) * lat / lat_segs
         ring_r = radius * np.sin(phi)
         ring_z = cz + radius * np.cos(phi)
+        # Drop rings that would sit above the flat cap.
+        if use_flat_top and ring_z >= z_cap - 1e-6:
+            continue
         ring_indices.append(len(vertices))
         for lon in range(lon_segs):
             theta = 2 * np.pi * lon / lon_segs
@@ -108,10 +141,31 @@ def dome(center, radius, embed_depth, lat_segs=4, lon_segs=10):
     vertices.append([cx, cy, cz - embed_depth])
 
     faces = []
-    first_ring = ring_indices[0]
-    for lon in range(lon_segs):
-        nxt = (lon + 1) % lon_segs
-        faces.append([0, first_ring + lon, first_ring + nxt])
+    if use_flat_top:
+        # Flat cap fan (normal +Z).
+        for lon in range(lon_segs):
+            nxt = (lon + 1) % lon_segs
+            faces.append([top_center_idx,
+                          cap_ring_start + lon,
+                          cap_ring_start + nxt])
+        # Band: cap ring -> first hemisphere ring below it.
+        if ring_indices:
+            rs0 = cap_ring_start
+            rs1 = ring_indices[0]
+            for lon in range(lon_segs):
+                nxt = (lon + 1) % lon_segs
+                a = rs0 + lon
+                b = rs0 + nxt
+                c = rs1 + nxt
+                d = rs1 + lon
+                faces.append([a, d, c])
+                faces.append([a, c, b])
+    else:
+        # Pointed apex fan.
+        first_ring = ring_indices[0]
+        for lon in range(lon_segs):
+            nxt = (lon + 1) % lon_segs
+            faces.append([0, first_ring + lon, first_ring + nxt])
 
     for i in range(len(ring_indices) - 1):
         rs0 = ring_indices[i]
@@ -125,15 +179,16 @@ def dome(center, radius, embed_depth, lat_segs=4, lon_segs=10):
             faces.append([a, d, c])
             faces.append([a, c, b])
 
-    eq = ring_indices[-1]
-    for lon in range(lon_segs):
-        nxt = (lon + 1) % lon_segs
-        a = eq + lon
-        b = eq + nxt
-        c = cyl_bot_start + nxt
-        d = cyl_bot_start + lon
-        faces.append([a, d, c])
-        faces.append([a, c, b])
+    if ring_indices:
+        eq = ring_indices[-1]
+        for lon in range(lon_segs):
+            nxt = (lon + 1) % lon_segs
+            a = eq + lon
+            b = eq + nxt
+            c = cyl_bot_start + nxt
+            d = cyl_bot_start + lon
+            faces.append([a, d, c])
+            faces.append([a, c, b])
 
     for lon in range(lon_segs):
         nxt = (lon + 1) % lon_segs
@@ -289,6 +344,7 @@ def plate_dimensions(lines_cells):
 DEFAULT_DOT_STYLE = 'dome'
 DEFAULT_DOT_RADIUS = 1.0
 DEFAULT_DOT_EMBED = 0.15
+DEFAULT_DOT_FLAT = 0.05          # apex truncation for FDM-friendly cap (mm)
 
 DEFAULT_ENGRAVING = True
 DEFAULT_ENGRAVING_SIZE = 4.0     # triangle side length (mm)
@@ -384,6 +440,7 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        dot_style=DEFAULT_DOT_STYLE,
                        dot_radius=DEFAULT_DOT_RADIUS,
                        dot_embed=DEFAULT_DOT_EMBED,
+                       dot_flat=DEFAULT_DOT_FLAT,
                        with_engraving=DEFAULT_ENGRAVING,
                        engraving_size=DEFAULT_ENGRAVING_SIZE,
                        engraving_depth=DEFAULT_ENGRAVING_DEPTH,
@@ -411,7 +468,8 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                 dy_flipped = 2 * DOT_SPACING - dy
                 dot_center = (cell_x + dx, cell_y + dy_flipped, 0.0)
                 if dot_style == 'dome':
-                    meshes.append(dome(dot_center, dot_radius, dot_embed))
+                    meshes.append(dome(dot_center, dot_radius, dot_embed,
+                                       flat_top_depth=dot_flat))
                 else:
                     meshes.append(uv_sphere(dot_center, dot_radius))
 
@@ -476,6 +534,7 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
                    dot_style=DEFAULT_DOT_STYLE,
                    dot_radius=DEFAULT_DOT_RADIUS,
                    dot_embed=DEFAULT_DOT_EMBED,
+                   dot_flat=DEFAULT_DOT_FLAT,
                    with_engraving=DEFAULT_ENGRAVING,
                    engraving_size=DEFAULT_ENGRAVING_SIZE,
                    engraving_depth=DEFAULT_ENGRAVING_DEPTH):
@@ -488,6 +547,7 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
         dot_style=dot_style,
         dot_radius=dot_radius,
         dot_embed=dot_embed,
+        dot_flat=dot_flat,
         with_engraving=with_engraving,
         engraving_size=engraving_size,
         engraving_depth=engraving_depth,
