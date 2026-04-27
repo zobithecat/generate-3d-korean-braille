@@ -329,15 +329,15 @@ def filleted_plate(W, H, t, r, n_corner=6, n_fillet=6, eps=1e-4):
 # ---------------------------------------------------------------------------
 # Braille plate assembly
 # ---------------------------------------------------------------------------
-def plate_dimensions(lines_cells):
+def plate_dimensions(lines_cells, margin=MARGIN):
     max_cells = max((len(c) for c in lines_cells), default=0)
     num_lines = max(len(lines_cells), 1)
 
     content_w = max(max_cells, 1) * CHAR_WIDTH
     content_h = num_lines * LINE_HEIGHT
 
-    plate_w = content_w + 2 * MARGIN
-    plate_h = content_h + 2 * MARGIN
+    plate_w = content_w + 2 * margin
+    plate_h = content_h + 2 * margin
     return plate_w, plate_h
 
 
@@ -444,9 +444,10 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        with_engraving=DEFAULT_ENGRAVING,
                        engraving_size=DEFAULT_ENGRAVING_SIZE,
                        engraving_depth=DEFAULT_ENGRAVING_DEPTH,
+                       margin=MARGIN,
                        n_corner=6, n_fillet=6):
     lines_cells = text_to_cells(text)
-    plate_w, plate_h = plate_dimensions(lines_cells)
+    plate_w, plate_h = plate_dimensions(lines_cells, margin=margin)
     num_lines = max(len(lines_cells), 1)
 
     meshes = []
@@ -459,8 +460,8 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
     for line_idx, cells in enumerate(lines_cells):
         effective_line = (num_lines - 1) - line_idx
         for cell_idx, dots in enumerate(cells):
-            cell_x = MARGIN + cell_idx * CHAR_WIDTH + DOT_SPACING / 2
-            cell_y = MARGIN + effective_line * LINE_HEIGHT + y_pad_in_cell
+            cell_x = margin + cell_idx * CHAR_WIDTH + DOT_SPACING / 2
+            cell_y = margin + effective_line * LINE_HEIGHT + y_pad_in_cell
             for dot in dots:
                 if dot not in DOT_OFFSETS:
                     continue
@@ -537,7 +538,8 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
                    dot_flat=DEFAULT_DOT_FLAT,
                    with_engraving=DEFAULT_ENGRAVING,
                    engraving_size=DEFAULT_ENGRAVING_SIZE,
-                   engraving_depth=DEFAULT_ENGRAVING_DEPTH):
+                   engraving_depth=DEFAULT_ENGRAVING_DEPTH,
+                   margin=MARGIN):
     v, f, dims = build_braille_mesh(
         text,
         plate_thickness=plate_thickness,
@@ -551,6 +553,7 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
         with_engraving=with_engraving,
         engraving_size=engraving_size,
         engraving_depth=engraving_depth,
+        margin=margin,
     )
     save_stl(v, f, filename)
     return len(f), dims

@@ -11,7 +11,7 @@ import tempfile
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
-from braille_data import text_to_cells, cells_to_unicode, PLATE_THICKNESS
+from braille_data import text_to_cells, cells_to_unicode, PLATE_THICKNESS, MARGIN
 from generator import (
     build_and_save, plate_dimensions,
     DEFAULT_DOT_STYLE, DEFAULT_DOT_RADIUS, DEFAULT_DOT_EMBED, DEFAULT_DOT_FLAT,
@@ -54,6 +54,7 @@ class BrailleApp:
         self.supports_var = tk.BooleanVar(value=False)
         self.thickness_var = tk.StringVar(value=str(PLATE_THICKNESS))
         self.fillet_var = tk.StringVar(value='1.5')
+        self.margin_var = tk.StringVar(value=str(MARGIN))
         self.dot_style_var = tk.StringVar(value=DEFAULT_DOT_STYLE)
         self.dot_radius_var = tk.StringVar(value=str(DEFAULT_DOT_RADIUS))
         self.dot_embed_var = tk.StringVar(value=str(DEFAULT_DOT_EMBED))
@@ -91,13 +92,22 @@ class BrailleApp:
                   foreground='#777').grid(row=3, column=2, sticky='w',
                                           padx=(6, 0))
 
+        ttk.Label(opt_frame, text="플레이트 여백 (mm):").grid(
+            row=4, column=0, sticky='w', pady=2, padx=(0, 6))
+        ttk.Entry(opt_frame, width=8,
+                  textvariable=self.margin_var).grid(
+            row=4, column=1, sticky='w')
+        ttk.Label(opt_frame, text="(점자 주변 빈 공간, 카드형은 5 ~ 10)",
+                  foreground='#777').grid(row=4, column=2, sticky='w',
+                                          padx=(6, 0))
+
         ttk.Separator(opt_frame, orient='horizontal').grid(
-            row=4, column=0, columnspan=3, sticky='we', pady=6)
+            row=5, column=0, columnspan=3, sticky='we', pady=6)
 
         ttk.Label(opt_frame, text="점 모양:").grid(
-            row=5, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=6, column=0, sticky='w', pady=2, padx=(0, 6))
         style_frame = ttk.Frame(opt_frame)
-        style_frame.grid(row=5, column=1, columnspan=2, sticky='w')
+        style_frame.grid(row=6, column=1, columnspan=2, sticky='w')
         ttk.Radiobutton(style_frame, text="Dome (원기둥+반구, 추천)",
                         variable=self.dot_style_var,
                         value='dome').pack(side='left', padx=(0, 10))
@@ -106,63 +116,63 @@ class BrailleApp:
                         value='sphere').pack(side='left')
 
         ttk.Label(opt_frame, text="점 반경 (mm):").grid(
-            row=6, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=7, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.dot_radius_var).grid(
-            row=6, column=1, sticky='w')
+            row=7, column=1, sticky='w')
         ttk.Label(opt_frame, text="(= 가시 높이, 기저 = 2×반경)",
-                  foreground='#777').grid(row=6, column=2, sticky='w',
+                  foreground='#777').grid(row=7, column=2, sticky='w',
                                           padx=(6, 0))
 
         ttk.Label(opt_frame, text="플레이트 속 박힘 (mm):").grid(
-            row=7, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=8, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.dot_embed_var).grid(
-            row=7, column=1, sticky='w')
+            row=8, column=1, sticky='w')
         ttk.Label(opt_frame, text="(Dome 전용 앵커, 보통 0.15 ~ 0.2)",
-                  foreground='#777').grid(row=7, column=2, sticky='w',
+                  foreground='#777').grid(row=8, column=2, sticky='w',
                                           padx=(6, 0))
 
         ttk.Checkbutton(
             opt_frame,
             text="점 상단 평평 깎기 (FDM 노즐 안착용, 뾰족 꼭지 방지)",
             variable=self.dot_flat_enable_var,
-        ).grid(row=8, column=0, columnspan=3, sticky='w', pady=2)
+        ).grid(row=9, column=0, columnspan=3, sticky='w', pady=2)
 
         ttk.Label(opt_frame, text="깎기 깊이 (mm):").grid(
-            row=9, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=10, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.dot_flat_var).grid(
-            row=9, column=1, sticky='w')
+            row=10, column=1, sticky='w')
         ttk.Label(opt_frame, text="(보통 0.03 ~ 0.08, 자동 클램프: 반경의 50%)",
-                  foreground='#777').grid(row=9, column=2, sticky='w',
+                  foreground='#777').grid(row=10, column=2, sticky='w',
                                           padx=(6, 0))
 
         ttk.Separator(opt_frame, orient='horizontal').grid(
-            row=10, column=0, columnspan=3, sticky='we', pady=6)
+            row=11, column=0, columnspan=3, sticky='we', pady=6)
 
         ttk.Checkbutton(
             opt_frame,
             text="뒷면에 음각 삼각형 (설치 방향 표시, apex = 위쪽)",
             variable=self.engrave_var,
-        ).grid(row=11, column=0, columnspan=3, sticky='w', pady=2)
+        ).grid(row=12, column=0, columnspan=3, sticky='w', pady=2)
 
         ttk.Label(opt_frame, text="삼각형 변 길이 (mm):").grid(
-            row=12, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=13, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.engrave_size_var).grid(
-            row=12, column=1, sticky='w')
+            row=13, column=1, sticky='w')
         ttk.Label(opt_frame, text="(자동 클램프: plate 의 40%/60%)",
-                  foreground='#777').grid(row=12, column=2, sticky='w',
+                  foreground='#777').grid(row=13, column=2, sticky='w',
                                           padx=(6, 0))
 
         ttk.Label(opt_frame, text="음각 깊이 (mm):").grid(
-            row=13, column=0, sticky='w', pady=2, padx=(0, 6))
+            row=14, column=0, sticky='w', pady=2, padx=(0, 6))
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.engrave_depth_var).grid(
-            row=13, column=1, sticky='w')
+            row=14, column=1, sticky='w')
         ttk.Label(opt_frame, text="(자동 클램프: plate 두께의 40%)",
-                  foreground='#777').grid(row=13, column=2, sticky='w',
+                  foreground='#777').grid(row=14, column=2, sticky='w',
                                           padx=(6, 0))
 
         preset_frame = ttk.LabelFrame(
@@ -176,6 +186,9 @@ class BrailleApp:
                    ).pack(side='left', padx=4)
         ttk.Button(preset_frame, text="C  사이니지 (크고 튼튼)",
                    command=lambda: self._apply_preset('C')
+                   ).pack(side='left', padx=4)
+        ttk.Button(preset_frame, text="D  카드형 (들고 다님)",
+                   command=lambda: self._apply_preset('D')
                    ).pack(side='left', padx=4)
 
         pv_frame = ttk.LabelFrame(root, text="점자 미리보기 (Unicode Braille)",
@@ -234,6 +247,15 @@ class BrailleApp:
         except ValueError:
             raise ValueError("필렛 반경은 0 이상의 숫자여야 합니다.")
 
+    def _get_margin(self) -> float:
+        try:
+            m = float(self.margin_var.get())
+            if m < 0:
+                raise ValueError
+            return m
+        except ValueError:
+            raise ValueError("플레이트 여백은 0 이상의 숫자여야 합니다.")
+
     def _get_dot_style(self) -> str:
         s = self.dot_style_var.get()
         if s not in ('dome', 'sphere'):
@@ -289,18 +311,22 @@ class BrailleApp:
             raise ValueError("음각 깊이는 0 이상의 숫자여야 합니다.")
 
     PRESETS = {
-        'A': {'label': '안정형',   'thickness': 2.0, 'fillet': 1.5,
+        'A': {'label': '안정형',   'thickness': 2.0, 'fillet': 1.5, 'margin': 2.0,
               'dot_style': 'dome', 'dot_radius': 0.8,  'dot_embed': 0.15,
               'dot_flat_on': True, 'dot_flat': 0.05,
               'engrave': True,  'engrave_size': 8.0,  'engrave_depth': 0.5},
-        'B': {'label': '박형',     'thickness': 1.2, 'fillet': 0.6,
+        'B': {'label': '박형',     'thickness': 1.2, 'fillet': 0.6, 'margin': 2.0,
               'dot_style': 'dome', 'dot_radius': 0.75, 'dot_embed': 0.20,
               'dot_flat_on': True, 'dot_flat': 0.04,
               'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.3},
-        'C': {'label': '사이니지', 'thickness': 2.5, 'fillet': 2.0,
+        'C': {'label': '사이니지', 'thickness': 2.5, 'fillet': 2.0, 'margin': 10.0,
               'dot_style': 'dome', 'dot_radius': 1.0,  'dot_embed': 0.20,
               'dot_flat_on': True, 'dot_flat': 0.08,
               'engrave': True,  'engrave_size': 10.0, 'engrave_depth': 0.7},
+        'D': {'label': '카드형',   'thickness': 2.0, 'fillet': 1.5, 'margin': 5.0,
+              'dot_style': 'dome', 'dot_radius': 0.8,  'dot_embed': 0.15,
+              'dot_flat_on': True, 'dot_flat': 0.05,
+              'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.4},
     }
 
     def _apply_preset(self, key: str):
@@ -309,6 +335,7 @@ class BrailleApp:
             return
         self.thickness_var.set(str(p['thickness']))
         self.fillet_var.set(str(p['fillet']))
+        self.margin_var.set(str(p['margin']))
         self.dot_style_var.set(p['dot_style'])
         self.dot_radius_var.set(str(p['dot_radius']))
         self.dot_embed_var.set(str(p['dot_embed']))
@@ -338,7 +365,11 @@ class BrailleApp:
         except ValueError:
             thickness = PLATE_THICKNESS
 
-        plate_w, plate_h = plate_dimensions(lines)
+        try:
+            margin_for_preview = self._get_margin()
+        except ValueError:
+            margin_for_preview = MARGIN
+        plate_w, plate_h = plate_dimensions(lines, margin=margin_for_preview)
         self.info_var.set(
             f"셀 {total_cells}개 · {len(lines)}줄  "
             f"→  플레이트 약 {plate_w:.1f} × {plate_h:.1f} × {thickness:.1f} mm"
@@ -371,6 +402,7 @@ class BrailleApp:
             dot_radius = self._get_dot_radius()
             dot_embed = self._get_dot_embed()
             dot_flat = self._get_dot_flat()
+            margin = self._get_margin()
             engrave = self.engrave_var.get()
             engrave_size = self._get_engrave_size()
             engrave_depth = self._get_engrave_depth()
@@ -403,6 +435,7 @@ class BrailleApp:
                 dot_radius=dot_radius,
                 dot_embed=dot_embed,
                 dot_flat=dot_flat,
+                margin=margin,
                 with_engraving=engrave,
                 engraving_size=engrave_size,
                 engraving_depth=engrave_depth,
@@ -447,6 +480,7 @@ class BrailleApp:
             dot_radius = self._get_dot_radius()
             dot_embed = self._get_dot_embed()
             dot_flat = self._get_dot_flat()
+            margin = self._get_margin()
             engrave = self.engrave_var.get()
             engrave_size = self._get_engrave_size()
             engrave_depth = self._get_engrave_depth()
@@ -476,6 +510,7 @@ class BrailleApp:
                 dot_radius=dot_radius,
                 dot_embed=dot_embed,
                 dot_flat=dot_flat,
+                margin=margin,
                 with_engraving=engrave,
                 engraving_size=engrave_size,
                 engraving_depth=engrave_depth,
