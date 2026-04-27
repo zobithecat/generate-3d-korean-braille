@@ -145,15 +145,23 @@ python3 app.py
 
 결과: 뷰어에서 회전·줌해도 점자가 정상 순서로 읽히고, 프린트 후 손에 쥐어도 입력 텍스트 순서가 유지됨.
 
-#### 10. 뒷면 음각 삼각형 (설치 방향 표시)
+#### 10. 뒷면 음각 — 삼각형 (방향) + 원본 텍스트 (정자)
 
-시각장애인 사용자가 아닌 **플레이트를 부착하는 사람** 을 위한 기능 — 플레이트 뒷면에 작은 음각 삼각형을 새겨 "이쪽이 위" 를 즉시 구별:
+시각장애인 사용자가 아닌 **플레이트를 부착하는 사람** 을 위한 기능 — 플레이트 뒷면에 두 종류 음각:
 
-- 위치: 뒷면 중앙 `(plate_w/2, plate_h/2)` 에 정삼각형
+**(1) 정삼각형** (설치 방향 표시):
+- 위치: 둘 다 켜져 있으면 뒷면 **상단** (`cy = plate_h × 0.72`), 단독이면 중앙
 - 방향: apex 가 **+Y 방향** (설치자가 뒷면을 볼 때 "위쪽")
-- 구현: watertight 정삼각형 prism 을 `trimesh.boolean.difference` 로 플레이트에서 차집합 → 필렛된 라운드 뒷면도 깨끗하게 파냄
-- 자동 클램프: `size ≤ min(W · 0.4, H · 0.6)`, `depth ≤ thickness · 0.4`
-- 점자를 읽는 데는 전혀 영향 없음 (반대면)
+- 자동 클램프: `size ≤ min(W·0.4, H·0.6)`, `depth ≤ thickness·0.4`
+
+**(2) 원본 텍스트** (정자로 음각, 점자 모르는 설치자가 식별 가능):
+- 위치: 둘 다 켜져 있으면 뒷면 **하단** (`cy = plate_h × 0.28`), 단독이면 중앙
+- 폰트 자동 탐색: macOS `Apple SD Gothic Neo` / Linux `NanumGothic` / Windows `Malgun Gothic` (한글·영문·숫자 모두 지원)
+- **X축 자동 미러** — 뒷면(-Z)에서 볼 때 정자로 읽히도록 폴리곤을 X 반전
+- 폰트 크기 자동 축소: 폴리곤이 plate 안에 안 들어가면 비례 축소 (확대는 안함)
+- `matplotlib TextPath` 로 글리프 → shapely (Multi)Polygon (even-odd rule via `symmetric_difference`) → `trimesh.creation.extrude_polygon` → Boolean 차집합
+
+두 음각 모두 같은 `engraving_depth` 공유. 점자를 읽는 데는 전혀 영향 없음 (반대면).
 
 ---
 

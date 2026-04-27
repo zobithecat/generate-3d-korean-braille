@@ -350,6 +350,9 @@ DEFAULT_ENGRAVING = True
 DEFAULT_ENGRAVING_SIZE = 4.0     # triangle side length (mm)
 DEFAULT_ENGRAVING_DEPTH = 0.2    # pocket depth into plate (mm)
 
+DEFAULT_TEXT_ENGRAVING = True
+DEFAULT_TEXT_ENGRAVING_SIZE = 4.0  # font height (mm)
+
 
 def _triangular_prism(cx, cy, z_bottom, z_top, size, pointing_up=True):
     """Watertight equilateral triangular prism for boolean subtraction.
@@ -434,6 +437,139 @@ def apply_triangular_engraving(plate_v, plate_f, plate_w, plate_h,
             np.asarray(engraved.faces, dtype=np.int64))
 
 
+# ---------------------------------------------------------------------------
+# Back-face text engraving — recess the original input text into the back
+# of the plate so the installer can read what the front says without
+# decoding braille.
+# ---------------------------------------------------------------------------
+def _find_korean_font():
+    """Pick a Korean-capable font installed on this system."""
+    import platform
+    candidates_by_os = {
+        'Darwin':  ['Apple SD Gothic Neo', 'AppleGothic', 'Nanum Gothic',
+                    'NanumGothic', 'Noto Sans Gothic'],
+        'Linux':   ['NanumGothic', 'Nanum Gothic', 'Noto Sans CJK KR',
+                    'Source Han Sans KR', 'DejaVu Sans'],
+        'Windows': ['Malgun Gothic', 'Gulim', 'Batang', 'Arial Unicode MS'],
+    }
+    cands = candidates_by_os.get(platform.system(), []) + ['sans-serif']
+    try:
+        import matplotlib.font_manager as fm
+        available = {f.name for f in fm.fontManager.ttflist}
+        for c in cands:
+            if c in available:
+                return c
+    except Exception:
+        pass
+    return 'sans-serif'
+
+
+def _text_to_polygon(text, size_mm, font_name=None, mirror_x=True):
+    """Convert text → 2D shapely (Multi)Polygon using even-odd rule.
+
+    ``mirror_x`` flips the polygon along X so the engraving reads
+    correctly when viewed from -Z (the plate's back face).
+    """
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.textpath import TextPath
+    from shapely.geometry import Polygon
+    from shapely.affinity import scale as shp_scale
+
+    if font_name is None:
+        font_name = _find_korean_font()
+
+    fp = FontProperties(family=font_name, size=size_mm)
+    tp = TextPath((0, 0), text, size=size_mm, prop=fp)
+
+    merged = None
+    for pts in tp.to_polygons():
+        if len(pts) < 3:
+            continue
+        p = Polygon(pts).buffer(0)
+        if not p.is_valid or p.is_empty:
+            continue
+        merged = p if merged is None else merged.symmetric_difference(p)
+
+    if merged is None or merged.is_empty:
+        return None
+
+    if mirror_x:
+        merged = shp_scale(merged, xfact=-1.0, yfact=1.0, origin='centroid')
+    return merged
+
+
+def _extrude_polygon_any(polygon, depth):
+    """Extrude a shapely Polygon or MultiPolygon to a 3D mesh."""
+    import trimesh
+    from trimesh.creation import extrude_polygon
+    if polygon.geom_type == 'Polygon':
+        return extrude_polygon(polygon, depth)
+    if polygon.geom_type == 'MultiPolygon':
+        meshes = [extrude_polygon(p, depth) for p in polygon.geoms]
+        return trimesh.util.concatenate(meshes)
+    raise ValueError(f"unsupported geometry: {polygon.geom_type}")
+
+
+def apply_text_engraving(plate_v, plate_f, plate_w, plate_h, plate_thickness,
+                          text, font_size, depth,
+                          cx=None, cy=None, font_name=None,
+                          margin=0.0, max_height_ratio=0.5):
+    """Engrave ``text`` into the plate back face via Boolean subtraction.
+
+    The polygon is automatically scaled down (never up) to fit within
+    ``plate_w - 2 * margin`` wide and ``plate_h * max_height_ratio`` tall.
+    Returns (vertices, faces) of the engraved plate.
+    """
+    import trimesh
+    from shapely.affinity import scale as shp_scale, translate as shp_translate
+
+    if not text or not text.strip():
+        return plate_v, plate_f
+    text = text.replace('\n', ' ').replace('\t', ' ').strip()
+
+    text_poly = _text_to_polygon(text, font_size, font_name=font_name,
+                                  mirror_x=True)
+    if text_poly is None or text_poly.is_empty:
+        return plate_v, plate_f
+
+    minx, miny, maxx, maxy = text_poly.bounds
+    text_w = maxx - minx
+    text_h = maxy - miny
+    if text_w <= 0 or text_h <= 0:
+        return plate_v, plate_f
+
+    avail_w = max(plate_w - 2 * margin, 0.1)
+    avail_h = max(plate_h * max_height_ratio, 0.1)
+    fit = min(avail_w / text_w, avail_h / text_h, 1.0)
+    if fit <= 0:
+        return plate_v, plate_f
+    if fit < 1.0:
+        text_poly = shp_scale(text_poly, xfact=fit, yfact=fit, origin='centroid')
+        minx, miny, maxx, maxy = text_poly.bounds
+
+    if cx is None:
+        cx = plate_w / 2
+    if cy is None:
+        cy = plate_h / 2
+    text_cx = (minx + maxx) / 2
+    text_cy = (miny + maxy) / 2
+    text_poly = shp_translate(text_poly, xoff=cx - text_cx, yoff=cy - text_cy)
+
+    depth = max(0.0, min(depth, plate_thickness * 0.4))
+    if depth <= 0:
+        return plate_v, plate_f
+
+    z_bottom = -plate_thickness - 0.1
+    extrusion_h = (-plate_thickness + depth) - z_bottom
+    text_mesh = _extrude_polygon_any(text_poly, extrusion_h)
+    text_mesh.apply_translation([0, 0, z_bottom])
+
+    plate = trimesh.Trimesh(plate_v, plate_f, process=False)
+    engraved = trimesh.boolean.difference([plate, text_mesh])
+    return (np.asarray(engraved.vertices, dtype=np.float64),
+            np.asarray(engraved.faces, dtype=np.int64))
+
+
 def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        with_backplate=True, with_supports=True,
                        fillet_radius=0.0,
@@ -444,6 +580,8 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                        with_engraving=DEFAULT_ENGRAVING,
                        engraving_size=DEFAULT_ENGRAVING_SIZE,
                        engraving_depth=DEFAULT_ENGRAVING_DEPTH,
+                       with_text_engraving=DEFAULT_TEXT_ENGRAVING,
+                       text_engraving_size=DEFAULT_TEXT_ENGRAVING_SIZE,
                        margin=MARGIN,
                        n_corner=6, n_fillet=6):
     lines_cells = text_to_cells(text)
@@ -486,11 +624,35 @@ def build_braille_mesh(text, plate_thickness=PLATE_THICKNESS,
                 plate_w, plate_h, 0.0,
             )
 
-        if with_engraving and engraving_size > 0 and engraving_depth > 0:
+        text_for_engrave = (text or '').replace('\n', ' ').strip()
+        engrave_tri = (with_engraving and engraving_size > 0
+                       and engraving_depth > 0)
+        engrave_text = (with_text_engraving and text_for_engrave
+                        and text_engraving_size > 0
+                        and engraving_depth > 0)
+
+        # Layout: when both are engraved, triangle goes to the upper area
+        # (apex points to "up") and the text goes to the lower area. When
+        # only one is present, it sits at the center.
+        if engrave_tri:
+            tri_cy = plate_h * 0.72 if engrave_text else plate_h / 2
             plate_v, plate_f = apply_triangular_engraving(
                 plate_v, plate_f, plate_w, plate_h, plate_thickness,
                 size=engraving_size, depth=engraving_depth,
                 pointing_up=True,
+                cx=plate_w / 2, cy=tri_cy,
+            )
+
+        if engrave_text:
+            text_cy = plate_h * 0.28 if engrave_tri else plate_h / 2
+            plate_v, plate_f = apply_text_engraving(
+                plate_v, plate_f, plate_w, plate_h, plate_thickness,
+                text=text_for_engrave,
+                font_size=text_engraving_size,
+                depth=engraving_depth,
+                cx=plate_w / 2, cy=text_cy,
+                margin=max(margin, 1.0),
+                max_height_ratio=0.4 if engrave_tri else 0.6,
             )
 
         meshes.append((plate_v, plate_f))
@@ -539,6 +701,8 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
                    with_engraving=DEFAULT_ENGRAVING,
                    engraving_size=DEFAULT_ENGRAVING_SIZE,
                    engraving_depth=DEFAULT_ENGRAVING_DEPTH,
+                   with_text_engraving=DEFAULT_TEXT_ENGRAVING,
+                   text_engraving_size=DEFAULT_TEXT_ENGRAVING_SIZE,
                    margin=MARGIN):
     v, f, dims = build_braille_mesh(
         text,
@@ -553,6 +717,8 @@ def build_and_save(text, filename, plate_thickness=PLATE_THICKNESS,
         with_engraving=with_engraving,
         engraving_size=engraving_size,
         engraving_depth=engraving_depth,
+        with_text_engraving=with_text_engraving,
+        text_engraving_size=text_engraving_size,
         margin=margin,
     )
     save_stl(v, f, filename)

@@ -16,6 +16,7 @@ from generator import (
     build_and_save, plate_dimensions,
     DEFAULT_DOT_STYLE, DEFAULT_DOT_RADIUS, DEFAULT_DOT_EMBED, DEFAULT_DOT_FLAT,
     DEFAULT_ENGRAVING, DEFAULT_ENGRAVING_SIZE, DEFAULT_ENGRAVING_DEPTH,
+    DEFAULT_TEXT_ENGRAVING, DEFAULT_TEXT_ENGRAVING_SIZE,
 )
 
 PREVIEW_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -60,6 +61,8 @@ class BrailleApp:
         self.dot_embed_var = tk.StringVar(value=str(DEFAULT_DOT_EMBED))
         self.dot_flat_enable_var = tk.BooleanVar(value=True)
         self.dot_flat_var = tk.StringVar(value=str(DEFAULT_DOT_FLAT))
+        self.text_engrave_var = tk.BooleanVar(value=DEFAULT_TEXT_ENGRAVING)
+        self.text_engrave_size_var = tk.StringVar(value=str(DEFAULT_TEXT_ENGRAVING_SIZE))
         self.engrave_var = tk.BooleanVar(value=DEFAULT_ENGRAVING)
         self.engrave_size_var = tk.StringVar(value=str(DEFAULT_ENGRAVING_SIZE))
         self.engrave_depth_var = tk.StringVar(value=str(DEFAULT_ENGRAVING_DEPTH))
@@ -171,8 +174,23 @@ class BrailleApp:
         ttk.Entry(opt_frame, width=8,
                   textvariable=self.engrave_depth_var).grid(
             row=14, column=1, sticky='w')
-        ttk.Label(opt_frame, text="(자동 클램프: plate 두께의 40%)",
+        ttk.Label(opt_frame, text="(자동 클램프: plate 두께의 40%, 삼각형/텍스트 공유)",
                   foreground='#777').grid(row=14, column=2, sticky='w',
+                                          padx=(6, 0))
+
+        ttk.Checkbutton(
+            opt_frame,
+            text="원본 텍스트 음각 (뒷면, 자동 X 미러로 설치자가 정자로 읽음)",
+            variable=self.text_engrave_var,
+        ).grid(row=15, column=0, columnspan=3, sticky='w', pady=2)
+
+        ttk.Label(opt_frame, text="텍스트 폰트 크기 (mm):").grid(
+            row=16, column=0, sticky='w', pady=2, padx=(0, 6))
+        ttk.Entry(opt_frame, width=8,
+                  textvariable=self.text_engrave_size_var).grid(
+            row=16, column=1, sticky='w')
+        ttk.Label(opt_frame, text="(plate 에 맞도록 자동 축소)",
+                  foreground='#777').grid(row=16, column=2, sticky='w',
                                           padx=(6, 0))
 
         preset_frame = ttk.LabelFrame(
@@ -310,23 +328,36 @@ class BrailleApp:
         except ValueError:
             raise ValueError("음각 깊이는 0 이상의 숫자여야 합니다.")
 
+    def _get_text_engrave_size(self) -> float:
+        try:
+            s = float(self.text_engrave_size_var.get())
+            if s < 0:
+                raise ValueError
+            return s
+        except ValueError:
+            raise ValueError("텍스트 폰트 크기는 0 이상의 숫자여야 합니다.")
+
     PRESETS = {
         'A': {'label': '안정형',   'thickness': 2.0, 'fillet': 1.5, 'margin': 2.0,
               'dot_style': 'dome', 'dot_radius': 0.8,  'dot_embed': 0.15,
               'dot_flat_on': True, 'dot_flat': 0.05,
-              'engrave': True,  'engrave_size': 8.0,  'engrave_depth': 0.5},
+              'engrave': True,  'engrave_size': 8.0,  'engrave_depth': 0.5,
+              'text_engrave': True, 'text_engrave_size': 4.0},
         'B': {'label': '박형',     'thickness': 1.2, 'fillet': 0.6, 'margin': 2.0,
               'dot_style': 'dome', 'dot_radius': 0.75, 'dot_embed': 0.20,
               'dot_flat_on': True, 'dot_flat': 0.04,
-              'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.3},
+              'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.3,
+              'text_engrave': True, 'text_engrave_size': 3.0},
         'C': {'label': '사이니지', 'thickness': 2.5, 'fillet': 2.0, 'margin': 10.0,
               'dot_style': 'dome', 'dot_radius': 1.0,  'dot_embed': 0.20,
               'dot_flat_on': True, 'dot_flat': 0.08,
-              'engrave': True,  'engrave_size': 10.0, 'engrave_depth': 0.7},
+              'engrave': True,  'engrave_size': 10.0, 'engrave_depth': 0.7,
+              'text_engrave': True, 'text_engrave_size': 6.0},
         'D': {'label': '카드형',   'thickness': 2.0, 'fillet': 1.5, 'margin': 5.0,
               'dot_style': 'dome', 'dot_radius': 0.8,  'dot_embed': 0.15,
               'dot_flat_on': True, 'dot_flat': 0.05,
-              'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.4},
+              'engrave': True,  'engrave_size': 6.0,  'engrave_depth': 0.4,
+              'text_engrave': True, 'text_engrave_size': 4.0},
     }
 
     def _apply_preset(self, key: str):
@@ -344,6 +375,8 @@ class BrailleApp:
         self.engrave_var.set(p['engrave'])
         self.engrave_size_var.set(str(p['engrave_size']))
         self.engrave_depth_var.set(str(p['engrave_depth']))
+        self.text_engrave_var.set(p['text_engrave'])
+        self.text_engrave_size_var.set(str(p['text_engrave_size']))
         self.status_var.set(f"프리셋 {key} · {p['label']} 적용됨")
         self.update_preview()
 
@@ -406,6 +439,8 @@ class BrailleApp:
             engrave = self.engrave_var.get()
             engrave_size = self._get_engrave_size()
             engrave_depth = self._get_engrave_depth()
+            text_engrave = self.text_engrave_var.get()
+            text_engrave_size = self._get_text_engrave_size()
         except ValueError as e:
             messagebox.showerror("입력 오류", str(e))
             return
@@ -439,6 +474,8 @@ class BrailleApp:
                 with_engraving=engrave,
                 engraving_size=engrave_size,
                 engraving_depth=engrave_depth,
+                with_text_engraving=text_engrave,
+                text_engraving_size=text_engrave_size,
             )
         except ImportError as e:
             self.status_var.set("의존성 누락")
@@ -484,6 +521,8 @@ class BrailleApp:
             engrave = self.engrave_var.get()
             engrave_size = self._get_engrave_size()
             engrave_depth = self._get_engrave_depth()
+            text_engrave = self.text_engrave_var.get()
+            text_engrave_size = self._get_text_engrave_size()
         except ValueError as e:
             messagebox.showerror("입력 오류", str(e))
             return
@@ -514,6 +553,8 @@ class BrailleApp:
                 with_engraving=engrave,
                 engraving_size=engrave_size,
                 engraving_depth=engrave_depth,
+                with_text_engraving=text_engrave,
+                text_engraving_size=text_engrave_size,
             )
         except ImportError as e:
             self.status_var.set("의존성 누락")
