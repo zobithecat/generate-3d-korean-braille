@@ -201,12 +201,29 @@ app.py                    Tkinter GUI (엔트리 포인트)
 ├── braille_data.py    # 점자 매핑 + Hangul 분해
 ├── generator.py       # 메시 생성 + STL 저장
 ├── preview_stl.py     # trimesh 뷰어 (subprocess)
+├── tests/
+│   └── smoke_braille.py   # 점자 변환 round-trip 스모크 테스트
 ├── requirements.txt
 ├── braille.jscad      # 원본 OpenJSCAD 스크립트 (참조용)
 ├── braille1.png       # 원본 데모 이미지
 ├── LICENSE            # GPL-3.0 전문
 └── README.md
 ```
+
+## 테스트
+
+```bash
+python3 tests/smoke_braille.py
+```
+
+58 케이스의 round-trip 스모크 테스트:
+- **[USER]** — 사용자가 실제 인쇄·확인한 ground truth (신분증 / 카드입구 / 영수증출구)
+- **[REF]** — [t.hi098123.com/braille](https://t.hi098123.com/braille) 변환기와 cross-check
+- **[RULE]** — 한국 점자 규정 제29항 (단독 약자 11자 + VF 약자 13종) 직접 도출
+
+테스트 카테고리: 단독 약자 11개 standalone · 단독 약자 다음 음절 조합 · VF 약자 13개 (ㅇ초성) · VF 약자 with 다른 초성 (먹/먼/절/편/별/형/녹/손/동/출/근/민) · 일반 받침 음절 · 복모음 (ㅘ/ㅢ/ㅚ/ㅝ) · 다음절 문구.
+
+> 참고: 라이브 round-trip 자동화는 reference 사이트가 trusted browser event 만 받아 처리하는 구조라 (CSP + 광고 인터스티셜) 자동 스크래핑이 막혀 있습니다. 대신 검증된 데이터셋을 골든 파일로 사용합니다.
 
 ---
 
