@@ -93,15 +93,20 @@ class BrailleApp:
         in_frame.pack(fill='x', padx=16, pady=8)
         in_row = ttk.Frame(in_frame)
         in_row.pack(fill='both', expand=True)
+        # Grid layout so the copy button is guaranteed visible regardless
+        # of the textbox's natural width.
+        in_row.columnconfigure(0, weight=1)
+        in_row.rowconfigure(0, weight=1)
         self.text_input = scrolledtext.ScrolledText(
-            in_row, height=6, wrap='word', font=('Helvetica', 13),
+            in_row, height=6, width=20, wrap='word',
+            font=('Helvetica', 13),
         )
-        self.text_input.pack(side='left', fill='both', expand=True)
+        self.text_input.grid(row=0, column=0, sticky='nsew')
         self.text_input.insert('1.0', '안녕하세요\nHello 123')
         self.text_input.bind('<KeyRelease>', lambda _e: self.update_preview())
         ttk.Button(in_row, text="📋\n복사", width=4,
-                   command=self._copy_input).pack(
-            side='right', padx=(6, 0), fill='y')
+                   command=self._copy_input).grid(
+            row=0, column=1, sticky='ns', padx=(6, 0))
 
         opt_frame = ttk.LabelFrame(content, text="프린팅 옵션", padding=8)
         opt_frame.pack(fill='x', padx=16, pady=6)
@@ -270,14 +275,16 @@ class BrailleApp:
         pv_frame.pack(fill='x', padx=16, pady=6)
         pv_row = ttk.Frame(pv_frame)
         pv_row.pack(fill='both', expand=True)
-        self.preview = tk.Text(pv_row, height=4, wrap='none',
+        pv_row.columnconfigure(0, weight=1)
+        pv_row.rowconfigure(0, weight=1)
+        self.preview = tk.Text(pv_row, height=4, width=20, wrap='none',
                                font=('Menlo', 20), bg='#fafafa',
                                relief='flat')
-        self.preview.pack(side='left', fill='both', expand=True)
+        self.preview.grid(row=0, column=0, sticky='nsew')
         self.preview.configure(state='disabled')
         ttk.Button(pv_row, text="📋\n복사", width=4,
-                   command=self._copy_preview).pack(
-            side='right', padx=(6, 0), fill='y')
+                   command=self._copy_preview).grid(
+            row=0, column=1, sticky='ns', padx=(6, 0))
 
         self.info_var = tk.StringVar(value='')
         ttk.Label(content, textvariable=self.info_var,
