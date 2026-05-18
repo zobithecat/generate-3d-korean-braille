@@ -181,20 +181,50 @@ _MULTI_ABBREV_DESC = tuple(sorted(KOREAN_MULTI_ABBREV.keys(),
                                    key=len, reverse=True))
 
 
+# VF 약자 14종 — 국립국어원 한국 점자 규정 제15항.
+# 점형은 PDF 해설서 (ASCII Braille NABU 디코딩) 직접 검증.
+#   은 약자 점형: PDF 해설서 line 1006 '은빛 z~o2'에서 z=⠵(1-3-5-6)로 확정.
+#                (1-3-4-5-6=⠽가 아님 — 이전 구현 버그 수정)
+#   을 약자 신규: PDF 제15항 14번째 약자, line 1185 '긁다 @!ai'에서 !=⠮로 확정.
 KOREAN_VF_ABBREV = {
-    ('ㅓ', 'ㄱ'): [1, 4, 5, 6],        # 억 ⠹
-    ('ㅓ', 'ㄴ'): [2, 3, 4, 5, 6],     # 언 ⠾
-    ('ㅓ', 'ㄹ'): [2, 3, 4, 5],        # 얼 ⠞
-    ('ㅕ', 'ㄴ'): [1, 6],              # 연 ⠡
-    ('ㅕ', 'ㄹ'): [1, 2, 5, 6],        # 열 ⠳
-    ('ㅕ', 'ㅇ'): [1, 2, 4, 5, 6],     # 영 ⠻
-    ('ㅗ', 'ㄱ'): [1, 3, 4, 6],        # 옥 ⠭
-    ('ㅗ', 'ㄴ'): [1, 2, 3, 5, 6],     # 온 ⠷
-    ('ㅗ', 'ㅇ'): [1, 2, 3, 4, 5, 6],  # 옹 ⠿
-    ('ㅜ', 'ㄴ'): [1, 2, 4, 5],        # 운 ⠛
-    ('ㅜ', 'ㄹ'): [1, 2, 3, 4, 6],     # 울 ⠯
-    ('ㅡ', 'ㄴ'): [1, 3, 4, 5, 6],     # 은 ⠵
-    ('ㅣ', 'ㄴ'): [1, 2, 3, 4, 5],     # 인 ⠟
+    ('ㅓ', 'ㄱ'): [1, 4, 5, 6],        # 억 ⠹  (NABU `?`)
+    ('ㅓ', 'ㄴ'): [2, 3, 4, 5, 6],     # 언 ⠾  (NABU `)`)
+    ('ㅓ', 'ㄹ'): [2, 3, 4, 5],        # 얼 ⠞  (NABU `T`)
+    ('ㅕ', 'ㄴ'): [1, 6],              # 연 ⠡  (NABU `*`)
+    ('ㅕ', 'ㄹ'): [1, 2, 5, 6],        # 열 ⠳  (NABU `|`)
+    ('ㅕ', 'ㅇ'): [1, 2, 4, 5, 6],     # 영 ⠻  (NABU `}`)
+    ('ㅗ', 'ㄱ'): [1, 3, 4, 6],        # 옥 ⠭  (NABU `x`)
+    ('ㅗ', 'ㄴ'): [1, 2, 3, 5, 6],     # 온 ⠷  (NABU `(`)
+    ('ㅗ', 'ㅇ'): [1, 2, 3, 4, 5, 6],  # 옹 ⠿  (NABU `=`)
+    ('ㅜ', 'ㄴ'): [1, 2, 4, 5],        # 운 ⠛  (NABU `g`)
+    ('ㅜ', 'ㄹ'): [1, 2, 3, 4, 6],     # 울 ⠯  (NABU `&`)
+    ('ㅡ', 'ㄴ'): [1, 3, 5, 6],        # 은 ⠵  (NABU `z`) ← 정정
+    ('ㅡ', 'ㄹ'): [2, 3, 4, 6],        # 을 ⠮  (NABU `!`) ← 신규
+    ('ㅣ', 'ㄴ'): [1, 2, 3, 4, 5],     # 인 ⠟  (NABU `q`)
+}
+
+# 제16항 — 성/정/청 특례.
+# 'ㅅ/ㅆ/ㅈ/ㅉ/ㅊ' + 'ㅓ' + 'ㅇ받침' 음절은 영 약자(⠻)를 적용.
+# 반대로 같은 초성에 'ㅕ' + 'ㅇ받침'(셩/졍/쳥)이 오면 풀어쓰기.
+SEONG_INITIALS = frozenset(['ㅅ', 'ㅆ', 'ㅈ', 'ㅉ', 'ㅊ'])
+YEONG_ABBREV = [1, 2, 4, 5, 6]   # ⠻ — 영 약자 (제16항에서 재사용)
+
+# 겹받침 → (앞 자음, 뒤 자음) 분해.
+# 제15항 해설: VF 약자는 단일 받침뿐 아니라 겹받침의 앞 자음과도 매칭된다.
+#   예) 긁 = ㄱ+ㅡ+ㄺ(=ㄹ+ㄱ) → ㄱ + 을 약자(ㅡ,ㄹ) + ㄱ받침
+#       끊 = ㄲ+ㅡ+ㄶ(=ㄴ+ㅎ) → ㄲ + 은 약자(ㅡ,ㄴ) + ㅎ받침
+KOREAN_COMPOUND_FINAL = {
+    'ㄳ': ('ㄱ', 'ㅅ'),
+    'ㄵ': ('ㄴ', 'ㅈ'),
+    'ㄶ': ('ㄴ', 'ㅎ'),
+    'ㄺ': ('ㄹ', 'ㄱ'),
+    'ㄻ': ('ㄹ', 'ㅁ'),
+    'ㄼ': ('ㄹ', 'ㅂ'),
+    'ㄽ': ('ㄹ', 'ㅅ'),
+    'ㄾ': ('ㄹ', 'ㅌ'),
+    'ㄿ': ('ㄹ', 'ㅍ'),
+    'ㅀ': ('ㄹ', 'ㅎ'),
+    'ㅄ': ('ㅂ', 'ㅅ'),
 }
 
 
@@ -315,9 +345,33 @@ def text_to_cells(text: str):
                     cells.append(list(KOREAN_SYLLABLE_ABBREV[ch]))
                 else:
                     initial, vowel, final = decompose_hangul(ch)
+                    # 제16항 — 성/정/청 특례 (ㅅ/ㅆ/ㅈ/ㅉ/ㅊ + ㅓ + ㅇ → 영 약자;
+                    # 반대로 셩/졍/쳥은 풀어쓰기).
+                    use_yeong_special = (
+                        initial in SEONG_INITIALS
+                        and vowel == 'ㅓ' and final == 'ㅇ'
+                    )
+                    block_yeong_normal = (
+                        initial in SEONG_INITIALS
+                        and vowel == 'ㅕ' and final == 'ㅇ'
+                    )
                     cells.extend(KOREAN_INITIAL.get(initial, []))
-                    if (vowel, final) in KOREAN_VF_ABBREV:
+                    if use_yeong_special:
+                        cells.append(list(YEONG_ABBREV))
+                    elif block_yeong_normal:
+                        cells.extend(KOREAN_VOWEL.get(vowel, []))
+                        cells.extend(KOREAN_FINAL.get(final, []))
+                    elif (vowel, final) in KOREAN_VF_ABBREV:
                         cells.append(list(KOREAN_VF_ABBREV[(vowel, final)]))
+                    elif (
+                        final in KOREAN_COMPOUND_FINAL
+                        and (vowel, KOREAN_COMPOUND_FINAL[final][0])
+                            in KOREAN_VF_ABBREV
+                    ):
+                        # 겹받침 앞 자음 + 모음이 VF 약자 매칭 (제15항 해설)
+                        first, second = KOREAN_COMPOUND_FINAL[final]
+                        cells.append(list(KOREAN_VF_ABBREV[(vowel, first)]))
+                        cells.extend(KOREAN_FINAL.get(second, []))
                     else:
                         cells.extend(KOREAN_VOWEL.get(vowel, []))
                         cells.extend(KOREAN_FINAL.get(final, []))
