@@ -53,6 +53,12 @@ ENGLISH_PUNCT = {
     '(': [1, 2, 3, 5, 6], ')': [2, 3, 4, 5, 6], '"': [2, 3, 6],
 }
 
+# Multi-cell punctuation. Checked before ENGLISH_PUNCT in the loop.
+ENGLISH_PUNCT_MULTI = {
+    '[': [[4], [2, 3, 6]],     # ⠈⠦  (한국 점자 규정 제33항)
+    ']': [[3, 5, 6], [4]],     # ⠴⠈
+}
+
 NUMBER_SIGN = [3, 4, 5, 6]
 CAPITAL_SIGN = [6]
 LETTER_SIGN = [5, 6]
@@ -143,6 +149,27 @@ KOREAN_SYLLABLE_ABBREV = {
 #       분 = ㅂ + (ㅜ+ㄴ → 운 약자 ⠛) = ⠘⠛
 #       인 = (ㅇ 생략) + (ㅣ+ㄴ → 인 약자 ⠟) = ⠟
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 다음절 약어 (multi-syllable contractions) - 한국 점자 규정 제30항
+# These multi-syllable Korean words are written as a 2-cell abbreviation
+# starting with ⠁ (dot 1) plus a distinguishing second cell.
+# Matched longest-first in text_to_cells via _MULTI_ABBREV_DESC.
+# ---------------------------------------------------------------------------
+KOREAN_MULTI_ABBREV = {
+    '그래서':   [[1], [2, 3, 4]],     # ⠁⠎
+    '그러나':   [[1], [1, 4]],         # ⠁⠉
+    '그러면':   [[1], [2, 5]],         # ⠁⠒
+    '그러므로': [[1], [2, 6]],         # ⠁⠢
+    '그런데':   [[1], [1, 3, 4, 5]],   # ⠁⠝
+    '그리고':   [[1], [1, 3, 6]],      # ⠁⠥
+    '그리하여': [[1], [1, 5, 6]],      # ⠁⠱
+}
+
+# Sorted longest-first so 그러므로 wins over 그러나, etc.
+_MULTI_ABBREV_DESC = tuple(sorted(KOREAN_MULTI_ABBREV.keys(),
+                                   key=len, reverse=True))
+
+
 KOREAN_VF_ABBREV = {
     ('ㅓ', 'ㄱ'): [1, 4, 5, 6],        # 억 ⠹
     ('ㅓ', 'ㄴ'): [2, 3, 4, 5, 6],     # 언 ⠾
@@ -231,52 +258,133 @@ def decompose_hangul(ch: str):
 # Text -> cells
 # ---------------------------------------------------------------------------
 def text_to_cells(text: str):
-    """Convert free-form text into a list of lines; each line is a list of cells."""
+    """Convert free-form text into a list of lines; each line is a list of cells.
+
+    Implements 한국 점자 규정 2017 + 2024 개정:
+      - 단독 약자 11자  (제29항)
+      - VF 약자 13종    (제29항)
+      - 다음절 약어 7종 (제30항) — 그래서/그러나/그러면/그러므로/
+                                       그런데/그리고/그리하여
+      - 숫자 다음 한글 사이 빈 칸 자동 삽입 (제30항)
+      - 소수점·쉼표는 number mode 유지 (⠼ 재삽입 X)
+      - 연속 대문자 ≥ 2 글자는 ⠠⠠ + 평문자 (단축)
+      - 대괄호 [, ] 2셀 매핑
+    """
     output_lines = []
     for raw_line in text.split('\n'):
         cells = []
         prev_is_digit = False
+        i = 0
+        n = len(raw_line)
 
-        for ch in raw_line:
+        while i < n:
+            ch = raw_line[i]
+
+            # 1) 다음절 약어 (longest-first)
+            matched = False
+            for pattern in _MULTI_ABBREV_DESC:
+                if raw_line.startswith(pattern, i):
+                    if prev_is_digit:
+                        cells.append([])  # 숫자→한글 사이 분리
+                    for c in KOREAN_MULTI_ABBREV[pattern]:
+                        cells.append(list(c))
+                    i += len(pattern)
+                    prev_is_digit = False
+                    matched = True
+                    break
+            if matched:
+                continue
+
+            # 2) Hangul composed syllable
             if is_hangul_syllable(ch):
+                if prev_is_digit:
+                    cells.append([])  # 숫자→한글 사이 분리
                 prev_is_digit = False
-                # 1) Whole-syllable abbreviation first (가/나/다/마/바/사/
-                #    자/카/타/파/하) - ㅏ is absorbed into the single cell.
                 if ch in KOREAN_SYLLABLE_ABBREV:
                     cells.append(list(KOREAN_SYLLABLE_ABBREV[ch]))
-                    continue
-                initial, vowel, final = decompose_hangul(ch)
-                cells.extend(KOREAN_INITIAL.get(initial, []))
-                # 2) (vowel, final) abbreviation if available; otherwise
-                #    fall back to the long form of vowel [+ final].
-                if (vowel, final) in KOREAN_VF_ABBREV:
-                    cells.append(list(KOREAN_VF_ABBREV[(vowel, final)]))
                 else:
-                    cells.extend(KOREAN_VOWEL.get(vowel, []))
-                    cells.extend(KOREAN_FINAL.get(final, []))
+                    initial, vowel, final = decompose_hangul(ch)
+                    cells.extend(KOREAN_INITIAL.get(initial, []))
+                    if (vowel, final) in KOREAN_VF_ABBREV:
+                        cells.append(list(KOREAN_VF_ABBREV[(vowel, final)]))
+                    else:
+                        cells.extend(KOREAN_VOWEL.get(vowel, []))
+                        cells.extend(KOREAN_FINAL.get(final, []))
+                i += 1
                 continue
 
+            # 3) Standalone jamo (compatibility block)
             if ch in KOREAN_INITIAL:
+                if prev_is_digit:
+                    cells.append([])
                 prev_is_digit = False
                 cells.extend(KOREAN_INITIAL[ch])
+                i += 1
                 continue
             if ch in KOREAN_VOWEL:
+                if prev_is_digit:
+                    cells.append([])
                 prev_is_digit = False
                 cells.extend(KOREAN_VOWEL[ch])
+                i += 1
                 continue
 
+            # 4) Decimal point / thousands-comma inside a number
+            #    (keep number mode active so ⠼ isn't re-emitted)
+            if prev_is_digit and ch in '.,':
+                if ch == '.':
+                    cells.append([2, 5, 6])    # ⠲
+                else:
+                    cells.append([2])           # ⠂
+                # prev_is_digit stays True
+                i += 1
+                continue
+
+            # 5) Digit
             if ch in NUMBER_BRAILLE:
                 if not prev_is_digit:
                     cells.append(list(NUMBER_SIGN))
                 cells.append(list(NUMBER_BRAILLE[ch]))
                 prev_is_digit = True
+                i += 1
                 continue
 
+            # 6) Whitespace
             if ch == ' ':
                 cells.append([])
                 prev_is_digit = False
+                i += 1
+                continue
+            if ch == '\t':
+                cells.append([])
+                prev_is_digit = False
+                i += 1
                 continue
 
+            # 7) Run of ≥ 2 consecutive uppercase ASCII letters → double-cap
+            #    prefix. Restrict to ASCII so Korean chars don't get pulled
+            #    into the "alphabetic run" (Python's str.isalpha() is True
+            #    for Hangul too).
+            def _is_ascii_alpha(c):
+                return c.isascii() and c.isalpha()
+
+            if _is_ascii_alpha(ch) and ch.isupper():
+                is_run_start = (i == 0) or not _is_ascii_alpha(raw_line[i - 1])
+                if is_run_start:
+                    j = i
+                    while j < n and _is_ascii_alpha(raw_line[j]):
+                        j += 1
+                    run = raw_line[i:j]
+                    if len(run) >= 2 and run.isupper():
+                        cells.append(list(CAPITAL_SIGN))
+                        cells.append(list(CAPITAL_SIGN))
+                        for k in range(i, j):
+                            cells.append(list(ENGLISH_BRAILLE[raw_line[k].lower()]))
+                        prev_is_digit = False
+                        i = j
+                        continue
+
+            # 8) English letter (single or mixed-case)
             lower = ch.lower()
             if lower in ENGLISH_BRAILLE:
                 if prev_is_digit and lower in 'abcdefghij':
@@ -285,20 +393,28 @@ def text_to_cells(text: str):
                     cells.append(list(CAPITAL_SIGN))
                 cells.append(list(ENGLISH_BRAILLE[lower]))
                 prev_is_digit = False
+                i += 1
                 continue
 
+            # 9) Multi-cell punctuation (대괄호 등)
+            if ch in ENGLISH_PUNCT_MULTI:
+                for c in ENGLISH_PUNCT_MULTI[ch]:
+                    cells.append(list(c))
+                prev_is_digit = False
+                i += 1
+                continue
+
+            # 10) Single-cell punctuation
             if ch in ENGLISH_PUNCT:
                 cells.append(list(ENGLISH_PUNCT[ch]))
                 prev_is_digit = False
+                i += 1
                 continue
 
-            if ch == '\t':
-                cells.append([])
-                prev_is_digit = False
-                continue
-
+            # 11) Unknown → blank cell
             cells.append([])
             prev_is_digit = False
+            i += 1
 
         output_lines.append(cells)
 
