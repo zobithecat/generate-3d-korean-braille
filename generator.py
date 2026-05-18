@@ -342,9 +342,9 @@ def plate_dimensions(lines_cells, margin=MARGIN):
 
 
 DEFAULT_DOT_STYLE = 'dome'
-DEFAULT_DOT_RADIUS = 1.0
+DEFAULT_DOT_RADIUS = 1.2
 DEFAULT_DOT_EMBED = 0.15
-DEFAULT_DOT_FLAT = 0.05          # apex truncation for FDM-friendly cap (mm)
+DEFAULT_DOT_FLAT = 0.08          # apex truncation for FDM-friendly cap (mm)
 
 DEFAULT_ENGRAVING = True
 DEFAULT_ENGRAVING_SIZE = 4.0     # triangle side length (mm)
