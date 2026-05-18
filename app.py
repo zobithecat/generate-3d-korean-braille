@@ -104,9 +104,9 @@ class BrailleApp:
         self.text_input.grid(row=0, column=0, sticky='nsew')
         self.text_input.insert('1.0', '안녕하세요\nHello 123')
         self.text_input.bind('<KeyRelease>', lambda _e: self.update_preview())
-        ttk.Button(in_row, text="📋\n복사", width=4,
+        ttk.Button(in_row, text="📋 복사", width=6,
                    command=self._copy_input).grid(
-            row=0, column=1, sticky='ns', padx=(6, 0))
+            row=0, column=1, sticky='n', padx=(6, 0), pady=(2, 0))
 
         opt_frame = ttk.LabelFrame(content, text="프린팅 옵션", padding=8)
         opt_frame.pack(fill='x', padx=16, pady=6)
@@ -282,9 +282,9 @@ class BrailleApp:
                                relief='flat')
         self.preview.grid(row=0, column=0, sticky='nsew')
         self.preview.configure(state='disabled')
-        ttk.Button(pv_row, text="📋\n복사", width=4,
+        ttk.Button(pv_row, text="📋 복사", width=6,
                    command=self._copy_preview).grid(
-            row=0, column=1, sticky='ns', padx=(6, 0))
+            row=0, column=1, sticky='n', padx=(6, 0), pady=(2, 0))
 
         self.info_var = tk.StringVar(value='')
         ttk.Label(content, textvariable=self.info_var,
