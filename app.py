@@ -27,10 +27,59 @@ class BrailleApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         root.title("점자 STL 생성기 - Braille Plate Generator")
-        root.geometry("680x820")
-        root.minsize(560, 720)
+        root.geometry("700x820")
+        # Allow tighter minimum for small/low monitors — main content
+        # becomes scrollable below.
+        root.minsize(560, 360)
 
-        header = ttk.Frame(root)
+        # Status bar pinned to bottom of root (always visible above scroll).
+        self.status_var = tk.StringVar(value="준비")
+        status = ttk.Label(root, textvariable=self.status_var,
+                           relief='sunken', anchor='w', padding=(8, 3))
+        status.pack(fill='x', side='bottom')
+
+        # Scrollable container for all the body content.
+        scroll_outer = ttk.Frame(root)
+        scroll_outer.pack(fill='both', expand=True)
+        self._canvas = tk.Canvas(scroll_outer, highlightthickness=0)
+        vscroll = ttk.Scrollbar(scroll_outer, orient='vertical',
+                                command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=vscroll.set)
+        vscroll.pack(side='right', fill='y')
+        self._canvas.pack(side='left', fill='both', expand=True)
+
+        content = ttk.Frame(self._canvas)
+        self._content_window = self._canvas.create_window(
+            (0, 0), window=content, anchor='nw')
+
+        def _on_canvas_cfg(event):
+            # Keep inner frame as wide as the canvas viewport.
+            self._canvas.itemconfig(self._content_window, width=event.width)
+        self._canvas.bind('<Configure>', _on_canvas_cfg)
+
+        def _on_content_cfg(_event):
+            self._canvas.configure(scrollregion=self._canvas.bbox('all'))
+        content.bind('<Configure>', _on_content_cfg)
+
+        # Mouse-wheel scroll the canvas, but let Text widgets (input/preview)
+        # handle their own scrolling when the cursor is over them.
+        def _on_wheel(event):
+            cur = self.root.winfo_containing(event.x_root, event.y_root)
+            while cur is not None:
+                if isinstance(cur, tk.Text):
+                    return
+                cur = cur.master
+            delta = getattr(event, 'delta', 0)
+            if event.num == 4 or delta > 0:
+                self._canvas.yview_scroll(-1, 'units')
+            elif event.num == 5 or delta < 0:
+                self._canvas.yview_scroll(1, 'units')
+        self.root.bind_all('<MouseWheel>', _on_wheel)
+        self.root.bind_all('<Button-4>', _on_wheel)
+        self.root.bind_all('<Button-5>', _on_wheel)
+
+        # ── Header ───────────────────────────────────────────────────
+        header = ttk.Frame(content)
         header.pack(fill='x', padx=16, pady=(14, 4))
         ttk.Label(header, text="점자 플레이트 STL 생성기",
                   font=('Helvetica', 16, 'bold')).pack(anchor='w')
@@ -38,17 +87,23 @@ class BrailleApp:
                   text="한글 · 영문 · 숫자를 입력하면 점자 STL 파일을 생성합니다.",
                   foreground='#555').pack(anchor='w')
 
-        in_frame = ttk.LabelFrame(root, text="텍스트 입력 (Enter 로 줄바꿈)",
+        # ── Text input ───────────────────────────────────────────────
+        in_frame = ttk.LabelFrame(content, text="텍스트 입력 (Enter 로 줄바꿈)",
                                   padding=8)
-        in_frame.pack(fill='both', expand=True, padx=16, pady=8)
+        in_frame.pack(fill='x', padx=16, pady=8)
+        in_row = ttk.Frame(in_frame)
+        in_row.pack(fill='both', expand=True)
         self.text_input = scrolledtext.ScrolledText(
-            in_frame, height=6, wrap='word', font=('Helvetica', 13),
+            in_row, height=6, wrap='word', font=('Helvetica', 13),
         )
-        self.text_input.pack(fill='both', expand=True)
+        self.text_input.pack(side='left', fill='both', expand=True)
         self.text_input.insert('1.0', '안녕하세요\nHello 123')
         self.text_input.bind('<KeyRelease>', lambda _e: self.update_preview())
+        ttk.Button(in_row, text="📋\n복사", width=4,
+                   command=self._copy_input).pack(
+            side='right', padx=(6, 0), fill='y')
 
-        opt_frame = ttk.LabelFrame(root, text="프린팅 옵션", padding=8)
+        opt_frame = ttk.LabelFrame(content, text="프린팅 옵션", padding=8)
         opt_frame.pack(fill='x', padx=16, pady=6)
 
         self.backplate_var = tk.BooleanVar(value=True)
@@ -194,7 +249,7 @@ class BrailleApp:
                                           padx=(6, 0))
 
         preset_frame = ttk.LabelFrame(
-            root, text="프리셋 (Plate · Fillet · Dot 일괄 적용)", padding=6)
+            content, text="프리셋 (Plate · Fillet · Dot 일괄 적용)", padding=6)
         preset_frame.pack(fill='x', padx=16, pady=4)
         ttk.Button(preset_frame, text="A  안정형 (일반용)",
                    command=lambda: self._apply_preset('A')
@@ -209,21 +264,27 @@ class BrailleApp:
                    command=lambda: self._apply_preset('D')
                    ).pack(side='left', padx=4)
 
-        pv_frame = ttk.LabelFrame(root, text="점자 미리보기 (Unicode Braille)",
+        # ── Preview ──────────────────────────────────────────────────
+        pv_frame = ttk.LabelFrame(content, text="점자 미리보기 (Unicode Braille)",
                                   padding=8)
         pv_frame.pack(fill='x', padx=16, pady=6)
-        self.preview = tk.Text(pv_frame, height=4, wrap='none',
+        pv_row = ttk.Frame(pv_frame)
+        pv_row.pack(fill='both', expand=True)
+        self.preview = tk.Text(pv_row, height=4, wrap='none',
                                font=('Menlo', 20), bg='#fafafa',
                                relief='flat')
-        self.preview.pack(fill='x')
+        self.preview.pack(side='left', fill='both', expand=True)
         self.preview.configure(state='disabled')
+        ttk.Button(pv_row, text="📋\n복사", width=4,
+                   command=self._copy_preview).pack(
+            side='right', padx=(6, 0), fill='y')
 
         self.info_var = tk.StringVar(value='')
-        ttk.Label(root, textvariable=self.info_var,
+        ttk.Label(content, textvariable=self.info_var,
                   foreground='#444').pack(fill='x', padx=18, pady=(0, 4))
 
-        btn_frame = ttk.Frame(root)
-        btn_frame.pack(fill='x', padx=16, pady=(4, 8))
+        btn_frame = ttk.Frame(content)
+        btn_frame.pack(fill='x', padx=16, pady=(4, 12))
         ttk.Button(btn_frame, text="텍스트 미리보기 새로고침",
                    command=self.update_preview).pack(side='left', padx=4)
         ttk.Button(btn_frame, text="3D 미리보기 (trimesh)",
@@ -237,15 +298,32 @@ class BrailleApp:
         self._preview_tmp_files = []
         atexit.register(self._cleanup_preview_resources)
 
-        self.status_var = tk.StringVar(value="준비")
-        status = ttk.Label(root, textvariable=self.status_var,
-                           relief='sunken', anchor='w', padding=(8, 3))
-        status.pack(fill='x', side='bottom')
-
         self.update_preview()
 
     def _get_text(self) -> str:
         return self.text_input.get('1.0', 'end-1c')
+
+    def _copy_input(self):
+        """Copy the input text to clipboard."""
+        txt = self._get_text()
+        if not txt:
+            self.status_var.set("복사할 내용 없음")
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(txt)
+        self.root.update_idletasks()  # macOS needs this to persist clipboard
+        self.status_var.set(f"입력 텍스트 복사됨 ({len(txt)}자)")
+
+    def _copy_preview(self):
+        """Copy the Unicode braille preview to clipboard."""
+        txt = self.preview.get('1.0', 'end-1c')
+        if not txt:
+            self.status_var.set("복사할 내용 없음")
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(txt)
+        self.root.update_idletasks()
+        self.status_var.set(f"점자 복사됨 ({len(txt)}자)")
 
     def _get_thickness(self) -> float:
         try:
