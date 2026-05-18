@@ -47,28 +47,81 @@ ENGLISH_BRAILLE = {
     'y': [1, 3, 4, 5, 6], 'z': [1, 3, 5, 6],
 }
 
-ENGLISH_PUNCT = {
+# UEB (통일 영어 점자) punctuation — 로마자 사이에 나타나는 부호에 한해 적용.
+# 출처: 한국 점자 규정 제32항 [붙임] 표.
+UEB_PUNCT = {
     ',': [2], '.': [2, 5, 6], '?': [2, 3, 6], '!': [2, 3, 5],
     ';': [2, 3], ':': [2, 5], "'": [3], '-': [3, 6],
     '(': [1, 2, 3, 5, 6], ')': [2, 3, 4, 5, 6], '"': [2, 3, 6],
-    # Math / symbol additions (한국 점자 규정 부호 + UEB 관습)
-    '/': [3, 4],               # ⠌  빗금 / 분수선
-    '+': [2, 3, 5],            # ⠖  덧셈표 (note: shares shape with `!`)
-    '=': [2, 3, 5, 6],         # ⠶  등호  (shares shape with ㅇ받침; ctx)
+    # ASCII math/symbol — Roman context uses NABU single-cell forms.
+    '/': [3, 4],          # ⠌
+    '+': [3, 4, 6],       # ⠬  (NABU `+`)
+    '=': [1, 2, 3, 4, 5, 6],  # ⠿  (NABU `=`)
+    '*': [1, 6],          # ⠡  (NABU `*`)
 }
 
-# Multi-cell punctuation. Checked before ENGLISH_PUNCT in the loop.
-ENGLISH_PUNCT_MULTI = {
-    '[': [[4], [2, 3, 6]],         # ⠈⠦  (한국 점자 규정 제33항)
-    ']': [[3, 5, 6], [4]],         # ⠴⠈
-    '*': [[1, 6], [3, 5]],         # ⠡⠔  별표
-    '@': [[4], [1]],               # ⠈⠁  골뱅이 (2017 신설)
-    '#': [[4, 5, 6], [1, 3, 4, 5, 6]],  # ⠸⠽  우물(샵)
-    '…': [[2, 5, 6], [2, 5, 6], [2, 5, 6]],  # ⠲⠲⠲  줄임표 (제35항)
-    '℃': [[4, 5], [3, 5, 6], [6], [1, 4]],   # ⠘⠴⠠⠉  °+ Cap+ C
-    '℉': [[4, 5], [3, 5, 6], [6], [1, 2, 4]], # ⠘⠴⠠⠋  °+ Cap+ F
-    '°': [[4, 5], [3, 5, 6]],      # ⠘⠴  도 기호
+# 한글 점자 문장 부호 (제44~67항) — 한글 본문 컨텍스트에서 우선 적용.
+# PDF 해설서 line 2520 비교 표 + 본문 항 직접 검증.
+KOREAN_PUNCT = {
+    ',': [5],                   # ⠐  쉼표 (제47항). 자릿점 쉼표는 별도 처리.
+    '.': [2, 5, 6],             # ⠲  마침표 (제44항). 소수점도 동일.
+    '?': [2, 3, 6],             # ⠦  물음표 (제45항)
+    '!': [2, 3, 5],             # ⠖  느낌표 (제46항)
+    "'": [3],                   # ⠄  아포스트로피 / 여는 작은따옴표
+                                #     (닫는 작은따옴표는 별도 2셀, MULTI)
+    '-': [3, 6],                # ⠤  붙임표 (제59항)
 }
+
+# 한글 점자 다중 셀 문장 부호.
+KOREAN_PUNCT_MULTI = {
+    ':':  [[5], [2]],                       # ⠐⠂  쌍점 (제49항)
+    ';':  [[5, 6], [2, 3]],                 # ⠰⠆  쌍반점 (제50항)
+    '(':  [[2, 3, 6], [3]],                 # ⠦⠄  여는 소괄호 (제54항)
+    ')':  [[6], [3, 5, 6]],                 # ⠠⠴  닫는 소괄호
+    '{':  [[2, 3, 6], [2]],                 # ⠦⠂  여는 중괄호 (제55항)
+    '}':  [[5], [3, 5, 6]],                 # ⠐⠴  닫는 중괄호
+    '[':  [[2, 3, 6], [2, 3]],              # ⠦⠆  여는 대괄호 (제56항)
+    ']':  [[5, 6], [3, 5, 6]],              # ⠰⠴  닫는 대괄호
+    '·':  [[5], [2, 3]],                    # ⠐⠆  가운뎃점 (제48항)
+    '~':  [[3, 6], [3, 6]],                 # ⠤⠤  물결표 (제61항) — 줄표와 동형
+    '*':  [[3, 5], [3, 5]],                 # ⠔⠔  별표 (제68항)
+    '/':  [[4, 5, 6], [3, 4]],              # ⠸⠌  빗금 (제51항)
+    '…':  [[2, 5, 6]] * 3,                  # ⠲⠲⠲  줄임표 — 마침표 3개 (제67항)
+    # 따옴표 — 한국 점자 규정은 여는/닫는 구분
+    '"':  [[2, 3, 6]],                      # 큰따옴표는 단일 셀이지만 처리 통일 위해 multi
+    # 골뱅이/우물/도/℃ — 한국 점자 규정 부호 (외래 부호 처리)
+    '@':  [[4], [1]],                       # ⠈⠁  골뱅이 ('그 밖의 기호')
+    '#':  [[4, 5, 6], [1, 4, 5, 6]],        # ⠸⠹  우물(샵)
+    '°':  [[3, 5, 6], [1, 4, 5]],           # ⠴⠙  도 — 로마자 표 + d
+    '℃':  [[3, 5, 6], [1, 4, 5], [6], [1, 4]],     # ⠴⠙⠠⠉  °+ Cap+ C
+    '℉':  [[3, 5, 6], [1, 4, 5], [6], [1, 2, 4]],  # ⠴⠙⠠⠋  °+ Cap+ F
+    '%':  [[3, 5, 6], [1, 2, 3, 4]],        # ⠴⠏  백분율 — 로마자 표 + p (제31항)
+    # 수학 기호 (제73항) — 한글 본문 컨텍스트 기본값
+    '+':  [[2, 6]],                         # ⠢  덧셈
+    '−':  [[3, 5]],                         # ⠔  뺄셈/음수 (U+2212, ASCII '-' 와 구분)
+    '=':  [[2, 5], [2, 5]],                 # ⠒⠒  등호
+    '×':  [[1, 6]],                         # ⠡  곱셈
+    '÷':  [[3, 4], [3, 4]],                 # ⠌⠌  나눗셈
+    # 화폐 기호 (제72항) — 모두 `@` + 영문자 형식
+    '₩':  [[4], [2, 4, 5, 6]],              # ⠈⠺  원
+    '$':  [[4], [1, 4, 5]],                 # ⠈⠙  달러
+    '€':  [[4], [1, 5]],                    # ⠈⠑  유로
+    '¥':  [[4], [1, 3, 4, 5, 6]],           # ⠈⠽  엔
+    '£':  [[4], [1, 2, 3]],                 # ⠈⠇  파운드
+    '¢':  [[4], [1, 4]],                    # ⠈⠉  센트
+    # 음수 부호 — Unicode minus sign (ASCII '-' 은 붙임표/하이픈로 별도 유지)
+    '−':  [[3, 5]],                         # ⠔  뺄셈/음수 (제73항)
+    # 글머리 (참고: 점역 지침)
+    '•':  [[2, 3, 5, 6]],                   # ⠶  1단계 글머리
+    # 그 외 외래 부호
+    '^':  [[4], [2, 6]],                    # ⠈⠢  캐럿
+    '&':  [[4], [1, 2, 3, 4, 6]],           # ⠈⠯  앰퍼샌드
+    '※':  [[4, 5, 6], [3, 5]],              # ⠸⠔  참고표
+}
+
+# Legacy aliases for backward compatibility within this module.
+ENGLISH_PUNCT = UEB_PUNCT
+ENGLISH_PUNCT_MULTI = KOREAN_PUNCT_MULTI
 
 NUMBER_SIGN = [3, 4, 5, 6]
 CAPITAL_SIGN = [6]
@@ -315,6 +368,11 @@ def text_to_cells(text: str):
     for raw_line in text.split('\n'):
         cells = []
         prev_is_digit = False
+        # prev_alpha_kind tracks the most recent letter-bearing character
+        # for punctuation context disambiguation. 'korean' is the default
+        # so that isolated punctuation in pure-Korean text uses 한국 점자
+        # 규정 mappings; switches to 'roman' inside ASCII letter runs.
+        prev_alpha_kind = 'korean'
         i = 0
         n = len(raw_line)
 
@@ -331,6 +389,7 @@ def text_to_cells(text: str):
                         cells.append(list(c))
                     i += len(pattern)
                     prev_is_digit = False
+                    prev_alpha_kind = 'korean'
                     matched = True
                     break
             if matched:
@@ -341,6 +400,7 @@ def text_to_cells(text: str):
                 if prev_is_digit:
                     cells.append([])  # 숫자→한글 사이 분리
                 prev_is_digit = False
+                prev_alpha_kind = 'korean'
                 if ch in KOREAN_SYLLABLE_ABBREV:
                     cells.append(list(KOREAN_SYLLABLE_ABBREV[ch]))
                 else:
@@ -383,6 +443,7 @@ def text_to_cells(text: str):
                 if prev_is_digit:
                     cells.append([])
                 prev_is_digit = False
+                prev_alpha_kind = 'korean'
                 cells.extend(KOREAN_INITIAL[ch])
                 i += 1
                 continue
@@ -390,6 +451,7 @@ def text_to_cells(text: str):
                 if prev_is_digit:
                     cells.append([])
                 prev_is_digit = False
+                prev_alpha_kind = 'korean'
                 cells.extend(KOREAN_VOWEL[ch])
                 i += 1
                 continue
@@ -458,6 +520,7 @@ def text_to_cells(text: str):
                         for k in range(i, j):
                             cells.append(list(ENGLISH_BRAILLE[raw_line[k].lower()]))
                         prev_is_digit = False
+                        prev_alpha_kind = 'roman'
                         i = j
                         continue
 
@@ -470,20 +533,37 @@ def text_to_cells(text: str):
                     cells.append(list(CAPITAL_SIGN))
                 cells.append(list(ENGLISH_BRAILLE[lower]))
                 prev_is_digit = False
+                prev_alpha_kind = 'roman'
                 i += 1
                 continue
 
-            # 9) Multi-cell punctuation (대괄호 등)
-            if ch in ENGLISH_PUNCT_MULTI:
-                for c in ENGLISH_PUNCT_MULTI[ch]:
-                    cells.append(list(c))
+            # 9) Punctuation — context-dependent.
+            # In Korean context (the default), prefer 한국 점자 규정
+            # mappings. In Roman context (just emitted an ASCII letter),
+            # fall back to UEB mappings for ASCII punct (per 제32항 [붙임]).
+            if prev_alpha_kind == 'korean':
+                if ch in KOREAN_PUNCT_MULTI:
+                    for c in KOREAN_PUNCT_MULTI[ch]:
+                        cells.append(list(c))
+                    prev_is_digit = False
+                    i += 1
+                    continue
+                if ch in KOREAN_PUNCT:
+                    cells.append(list(KOREAN_PUNCT[ch]))
+                    prev_is_digit = False
+                    i += 1
+                    continue
+            # Roman context (or punct not defined in Korean spec) → UEB
+            if ch in UEB_PUNCT:
+                cells.append(list(UEB_PUNCT[ch]))
                 prev_is_digit = False
                 i += 1
                 continue
-
-            # 10) Single-cell punctuation
-            if ch in ENGLISH_PUNCT:
-                cells.append(list(ENGLISH_PUNCT[ch]))
+            # Fallback: any multi-cell Korean punct still works in Roman
+            # context if no UEB single-cell exists.
+            if ch in KOREAN_PUNCT_MULTI:
+                for c in KOREAN_PUNCT_MULTI[ch]:
+                    cells.append(list(c))
                 prev_is_digit = False
                 i += 1
                 continue
