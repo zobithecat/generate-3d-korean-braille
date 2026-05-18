@@ -51,12 +51,23 @@ ENGLISH_PUNCT = {
     ',': [2], '.': [2, 5, 6], '?': [2, 3, 6], '!': [2, 3, 5],
     ';': [2, 3], ':': [2, 5], "'": [3], '-': [3, 6],
     '(': [1, 2, 3, 5, 6], ')': [2, 3, 4, 5, 6], '"': [2, 3, 6],
+    # Math / symbol additions (한국 점자 규정 부호 + UEB 관습)
+    '/': [3, 4],               # ⠌  빗금 / 분수선
+    '+': [2, 3, 5],            # ⠖  덧셈표 (note: shares shape with `!`)
+    '=': [2, 3, 5, 6],         # ⠶  등호  (shares shape with ㅇ받침; ctx)
 }
 
 # Multi-cell punctuation. Checked before ENGLISH_PUNCT in the loop.
 ENGLISH_PUNCT_MULTI = {
-    '[': [[4], [2, 3, 6]],     # ⠈⠦  (한국 점자 규정 제33항)
-    ']': [[3, 5, 6], [4]],     # ⠴⠈
+    '[': [[4], [2, 3, 6]],         # ⠈⠦  (한국 점자 규정 제33항)
+    ']': [[3, 5, 6], [4]],         # ⠴⠈
+    '*': [[1, 6], [3, 5]],         # ⠡⠔  별표
+    '@': [[4], [1]],               # ⠈⠁  골뱅이 (2017 신설)
+    '#': [[4, 5, 6], [1, 3, 4, 5, 6]],  # ⠸⠽  우물(샵)
+    '…': [[2, 5, 6], [2, 5, 6], [2, 5, 6]],  # ⠲⠲⠲  줄임표 (제35항)
+    '℃': [[4, 5], [3, 5, 6], [6], [1, 4]],   # ⠘⠴⠠⠉  °+ Cap+ C
+    '℉': [[4, 5], [3, 5, 6], [6], [1, 2, 4]], # ⠘⠴⠠⠋  °+ Cap+ F
+    '°': [[4, 5], [3, 5, 6]],      # ⠘⠴  도 기호
 }
 
 NUMBER_SIGN = [3, 4, 5, 6]
@@ -337,6 +348,18 @@ def text_to_cells(text: str):
                 else:
                     cells.append([2])           # ⠂
                 # prev_is_digit stays True
+                i += 1
+                continue
+
+            # 4b) Hyphen between digits keeps number mode active
+            #     so ⠼ isn't re-emitted (e.g. phone "010-1234-5678",
+            #     date "2026-05-18").
+            if (
+                prev_is_digit and ch == '-'
+                and i + 1 < n and raw_line[i + 1] in NUMBER_BRAILLE
+            ):
+                cells.append(list(ENGLISH_PUNCT['-']))  # ⠤
+                # prev_is_digit stays True — next digit will NOT re-emit ⠼
                 i += 1
                 continue
 
