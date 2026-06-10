@@ -262,6 +262,46 @@ KOREAN_VF_ABBREV = {
 SEONG_INITIALS = frozenset(['ㅅ', 'ㅆ', 'ㅈ', 'ㅉ', 'ㅊ'])
 YEONG_ABBREV = [1, 2, 4, 5, 6]   # ⠻ — 영 약자 (제16항에서 재사용)
 
+# 제13항 — 단독 약자 + 받침.
+# 가/나/다/마/바/사/자/카/타/파/하 음절에 받침이 추가되면, 약자 점형
+# (ㅏ 생략된 형태)에 받침을 이어 적는다.
+#   예) 맞 = 마 약자(⠑) + ㅈ받침(⠅) = ⠑⠅
+#       갈 = 가 약자(⠫) + ㄹ받침(⠂) = ⠫⠂
+#       당 = 다 약자(⠊) + ㅇ받침(⠶) = ⠊⠶  (PDF 마당 = ei7 = ⠑⠊⠶)
+# None = 약자 점형이 초성과 동일 (ㅏ만 생략하면 됨).
+# 명시값 = 가/사처럼 별도 점형 사용.
+SINGLE_ABBREV_BY_INITIAL = {
+    'ㄱ': [1, 2, 4, 6],   # 가 약자 ⠫ (ㄱ초성 ⠈와 다름)
+    'ㄴ': None,            # 나 약자 = ㄴ초성 동형 ⠉
+    'ㄷ': None,            # 다 = ⠊
+    'ㅁ': None,            # 마 = ⠑
+    'ㅂ': None,            # 바 = ⠘
+    'ㅅ': [1, 2, 3],       # 사 약자 ⠇ (ㅅ초성 ⠠와 다름)
+    'ㅈ': None,            # 자 = ⠨
+    'ㅋ': None,            # 카 = ⠋
+    'ㅌ': None,            # 타 = ⠓
+    'ㅍ': None,            # 파 = ⠙
+    'ㅎ': None,            # 하 = ⠚
+}
+
+# 제14항 — 된소리 단독 약자.
+# 까/싸/껏은 된소리표(⠠, dot 6) + 가/사/것 약자 형태로 적는다.
+#   까 = 된소리표(⠠) + 가 약자(⠫) = ⠠⠫
+#   싸 = 된소리표(⠠) + 사 약자(⠇) = ⠠⠇
+#   깟/쌌 등도 동일하게 된소리표 + 약자 + 받침
+TENSED_PREFIX = [6]   # ⠠ — 된소리 표지
+TENSED_ABBREV_BY_INITIAL = {
+    'ㄲ': [1, 2, 4, 6],   # 까 → ⠠⠫
+    'ㅆ': [1, 2, 3],       # 싸 → ⠠⠇
+}
+
+# 제17항 — 단독 약자 받침 없고 다음 음절이 모음으로 시작하면 ㅏ 살림.
+# 'ㄴ/ㄷ/ㅁ/ㅂ/ㅈ/ㅋ/ㅌ/ㅍ/ㅎ'에 적용 ('ㄱ'/'ㅅ'은 예외 없이 항상 약자).
+#   예) 다음 = ⠊⠣⠪⠢  (다 약자 안 쓰고 long form)
+#       카카오 = ⠋⠋⠣⠥  (두 번째 카는 long form, '오'가 ㅇ초성)
+#       마음 = ⠑⠣⠪⠢
+JEH_17_INITIALS = frozenset(['ㄴ', 'ㄷ', 'ㅁ', 'ㅂ', 'ㅈ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'])
+
 # 겹받침 → (앞 자음, 뒤 자음) 분해.
 # 제15항 해설: VF 약자는 단일 받침뿐 아니라 겹받침의 앞 자음과도 매칭된다.
 #   예) 긁 = ㄱ+ㅡ+ㄺ(=ㄹ+ㄱ) → ㄱ + 을 약자(ㅡ,ㄹ) + ㄱ받침
@@ -401,10 +441,63 @@ def text_to_cells(text: str):
                     cells.append([])  # 숫자→한글 사이 분리
                 prev_is_digit = False
                 prev_alpha_kind = 'korean'
-                if ch in KOREAN_SYLLABLE_ABBREV:
-                    cells.append(list(KOREAN_SYLLABLE_ABBREV[ch]))
-                else:
-                    initial, vowel, final = decompose_hangul(ch)
+                decomp = decompose_hangul(ch)
+                # mypy/pyright: is_hangul_syllable guarantees non-None
+                initial, vowel, final = decomp  # type: ignore[misc]
+
+                # 제14항 — 된소리 단독 약자 (까/싸/깟/쌌 등)
+                # ㄲ/ㅆ + ㅏ → 된소리표 + 가/사 약자 (+ 받침 있으면 이어 적기)
+                if vowel == 'ㅏ' and initial in TENSED_ABBREV_BY_INITIAL:
+                    cells.append(list(TENSED_PREFIX))
+                    cells.append(list(TENSED_ABBREV_BY_INITIAL[initial]))
+                    if final:
+                        if final in KOREAN_COMPOUND_FINAL:
+                            for j in KOREAN_COMPOUND_FINAL[final]:
+                                cells.extend(KOREAN_FINAL.get(j, []))
+                        else:
+                            cells.extend(KOREAN_FINAL.get(final, []))
+                    i += 1
+                    continue
+
+                # 제12-13항, 제17항 — 단독 약자 11종 + 받침/제17항 예외
+                if vowel == 'ㅏ' and initial in SINGLE_ABBREV_BY_INITIAL:
+                    if not final:
+                        # 받침 없음 — 제17항 체크
+                        keep_a = False
+                        if initial in JEH_17_INITIALS:
+                            nxt = i + 1
+                            if nxt < n and is_hangul_syllable(raw_line[nxt]):
+                                next_decomp = decompose_hangul(raw_line[nxt])
+                                if next_decomp and next_decomp[0] == 'ㅇ':
+                                    keep_a = True
+                        if keep_a:
+                            # long form — ㅏ 살림
+                            cells.extend(KOREAN_INITIAL.get(initial, []))
+                            cells.extend(KOREAN_VOWEL['ㅏ'])
+                        else:
+                            # 단독 약자 (ㅏ 생략)
+                            abbrev = SINGLE_ABBREV_BY_INITIAL[initial]
+                            if abbrev is not None:
+                                cells.append(list(abbrev))
+                            else:
+                                cells.extend(KOREAN_INITIAL.get(initial, []))
+                    else:
+                        # 받침 있음 — 제13항 (ㅏ 생략 + 약자 점형 + 받침)
+                        abbrev = SINGLE_ABBREV_BY_INITIAL[initial]
+                        if abbrev is not None:
+                            cells.append(list(abbrev))
+                        else:
+                            cells.extend(KOREAN_INITIAL.get(initial, []))
+                        if final in KOREAN_COMPOUND_FINAL:
+                            for j in KOREAN_COMPOUND_FINAL[final]:
+                                cells.extend(KOREAN_FINAL.get(j, []))
+                        else:
+                            cells.extend(KOREAN_FINAL.get(final, []))
+                    i += 1
+                    continue
+
+                # 라/차 등 제17항 외 syllable + 기타 — 기존 로직
+                if True:
                     # 제16항 — 성/정/청 특례 (ㅅ/ㅆ/ㅈ/ㅉ/ㅊ + ㅓ + ㅇ → 영 약자;
                     # 반대로 셩/졍/쳥은 풀어쓰기).
                     use_yeong_special = (
